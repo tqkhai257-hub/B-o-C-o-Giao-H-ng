@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fill Rate DC </title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    
+    <style>
+        :root { --bg-color: #f0f2f5; --card-bg: #ffffff; --text-main: #333; --text-gray: #666; --primary-blue: #1976D2; --primary-green: #4CAF50; --primary-red: #D32F2F; --shadow: 0 2px 10px rgba(0,0,0,0.08); --radius: 8px; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background-color: var(--bg-color); color: var(--text-main); }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        .header-title h1 { margin: 0; color: #f57c00; font-size: 24px; }
+        .control-area { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: white; padding: 10px 15px; border-radius: var(--radius); box-shadow: var(--shadow); }
+        .control-area select, .control-area button { padding: 6px 12px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; cursor: pointer; }
+        .btn-primary { background: var(--primary-blue); color: white; border: none; }
+        .btn-success { background: var(--primary-green); color: white; border: none; }
+        .kpi-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .kpi-card { background: var(--card-bg); border-radius: var(--radius); padding: 15px 20px; box-shadow: var(--shadow); border-top: 2px solid var(--primary-blue); }
+        .kpi-title { font-size: 12px; color: var(--text-gray); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+        .kpi-value { font-size: 24px; font-weight: bold; margin: 0; } .kpi-sub { font-size: 12px; color: var(--text-gray); margin-top: 5px; }
+        .charts-row { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .charts-row .col-half { flex: 1; min-width: 400px; }
+        .chart-box { background: var(--card-bg); border-radius: var(--radius); padding: 15px; box-shadow: var(--shadow); height: 350px; }
+        @media (max-width: 850px) { .charts-row .col-half { min-width: 100%; } }
+        .detail-section { margin-top: 25px; background: var(--card-bg); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+        .detail-tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .tab-btn { padding: 8px 16px; border: 1px solid transparent; background: transparent; cursor: pointer; border-radius: 20px; font-weight: 500; }
+        .tab-btn.active-ok { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+        .tab-btn.active-surplus { background: #e3f2fd; color: #0d47a1; border-color: #90caf9; }
+        .tab-btn.active-short { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
+        .detail-content { display: none; max-height: 400px; overflow-y: auto; }
+        .detail-content.active { display: block; }
+        .detail-content table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .detail-content th, .detail-content td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+        .empty-msg { color: #999; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-title">
+            <h1>📦 Đối chiếu Order / Giao </h1>
+            <small>KINGKONGMART 02(BÃI TRƯỜNG)</small>
+        </div>
+        <div class="control-area">
+            <span id="currentTime" style="font-size:13px; color:#666;">Cập nhật: ...</span>
+            <select id="matchType" style="min-width:180px; font-weight: 500;">
+                <option value="two_layer">🔁 Mã trước, Tên sau</option>
+                <option value="only_sku">🔑 Chỉ so Mã SKU</option>
+                <option value="only_name">📛 Chỉ so Tên SP</option>
+            </select>
+            <select id="timeFilter" style="min-width:100px;">
+                <option value="today">Hôm nay</option>
+                <option value="week">Tuần này</option>
+                <option value="month">Tháng này</option>
+                <option value="all">Tất cả</option>
+            </select>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" multiple style="display:none">
+            <button class="btn-primary" onclick="document.getElementById('fileInput').click()">📤 Chọn File Excel</button>
+            <button class="btn-success" id="exportBtn" onclick="exportReportToExcel()">📥 Xuất báo cáo</button>
+        </div>
+    </div>
+
+    <div class="kpi-container" id="kpiContainer">
+        <div class="kpi-card"><div class="kpi-title">FILL RATE TỔNG (THEO MÃ SP)</div><div class="kpi-value" id="kpi1_val">0%</div><div class="kpi-sub" id="kpi1_sub">0 / 0 mã đã lấy</div></div>
+        <div class="kpi-card"><div class="kpi-title">FILL RATE THEO SẢN LƯỢNG</div><div class="kpi-value" id="kpi2_val">0%</div><div class="kpi-sub" id="kpi2_sub">0 / 0 đơn vị</div></div>
+        <div class="kpi-card"><div class="kpi-title">MÃ SP CHƯA LẤY (Giao = 0)</div><div class="kpi-value" id="kpi3_val">0</div><div class="kpi-sub" id="kpi3_sub">0% số mã</div></div>
+        <div class="kpi-card"><div class="kpi-title">TỔNG SL ORDER</div><div class="kpi-value" id="kpi4_val">0</div><div class="kpi-sub" id="kpi4_sub">Đã giao 0 đv</div></div>
+        <div class="kpi-card"><div class="kpi-title">ĐÁNH GIÁ CHI TIẾT Mã</div><div class="kpi-value" id="kpi5_val">0</div><div class="kpi-sub" id="kpi5_sub">Đủ: 0, Dư: 0, Thiếu: 0</div></div>
+    </div>
+
+    <div class="charts-row">
+        <div class="col-half"><div class="chart-box" id="chartBarStack"></div></div>
+        <div class="col-half"><div class="chart-box" id="chartDonut"></div></div>
+    </div>
+    <div class="charts-row">
+        <div class="col-full"><div class="chart-box chart-box-full" id="chartGroupedBar"></div></div>
+    </div>
+
+    <div class="detail-section">
+        <h4>📋 Bảng chi tiết đối chiếu</h4>
+        <div class="detail-tabs">
+            <button class="tab-btn active-ok" onclick="switchTab('tab-ok', this)">✅ Giao đúng</button>
+            <button class="tab-btn active-surplus" onclick="switchTab('tab-surplus', this)">⚠️ Giao dư</button>
+            <button class="tab-btn active-short" onclick="switchTab('tab-short', this)">❌ Giao thiếu</button>
+        </div>
+        <div id="tab-ok" class="detail-content active"><div class="empty-msg">Chưa có dữ liệu.</div></div>
+        <div id="tab-surplus" class="detail-content"><div class="empty-msg">Chưa có dữ liệu.</div></div>
+        <div id="tab-short" class="detail-content"><div class="empty-msg">Chưa có dữ liệu.</div></div>
+    </div>
+
+    <script>
+        let rawOrders = [], rawDeliveries = [];
+        let chartBarStack, chartDonut, chartGroupedBar;
+        let lastResult = null;
+
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.detail-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('.detail-tabs .tab-btn').forEach(b => b.style.background = 'transparent');
+            btnElement.style.background = '#f0f0f0';
+        }
+
+        function filterArrayByTime(arr, filterType) {
+            if (filterType === 'all') return arr;
+            const today = new Date(); today.setHours(0,0,0,0);
+            return arr.filter(row => {
+                if(!row.date) return true;
+                const rowDate = new Date(row.date); rowDate.setHours(0,0,0,0);
+                if(isNaN(rowDate.getTime())) return true;
+                if (filterType === 'today') return rowDate.getTime() === today.getTime();
+                else if (filterType === 'week') {
+                    const getWeek = (d) => { d = new Date(d); d.setHours(0,0,0,0); d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7); };
+                    return getWeek(rowDate) === getWeek(today) && rowDate.getFullYear() === today.getFullYear();
+                } else if (filterType === 'month') return rowDate.getMonth() === today.getMonth() && rowDate.getFullYear() === today.getFullYear();
+                return true;
+            });
+        }
+
+        // === HÀM GỘP DÒNG THEO TÊN SP (Ưu tiên lấy Mã thật để hiển thị) ===
+        function mergeByProductName(items) {
+            const map = new Map();
+            items.forEach(item => {
+                const key = `${item.category}|${item.name.trim()}`;
+                if (!map.has(key)) {
+                    map.set(key, { ...item, sku: item.sku || '(Trống)' });
+                } else {
+                    const existing = map.get(key);
+                    existing.orderQty = (existing.orderQty || 0) + (item.orderQty || 0);
+                    existing.deliveredQty = (existing.deliveredQty || 0) + (item.deliveredQty || 0);
+                    
+                    // Nếu mã hiện tại đang bị trống, và mã mới có giá trị -> Cập nhật lại
+                    const currentSku = existing.sku;
+                    const newSku = item.sku;
+                    if ((!currentSku || currentSku === '(Trống)') && newSku && newSku !== '(Trống)') {
+                        existing.sku = newSku;
+                    }
+                    existing.matchType = "Tổng hợp (Gộp theo Tên)";
+                }
+            });
+            return Array.from(map.values());
+        }
+
+        function processTwoLayerLogic(filteredOrders, filteredDeliveries, matchType) {
+            // Lưu dữ liệu vào Map để tiện so sánh
+            let demandBySku = new Map(), supplyBySku = new Map(); 
+            filteredOrders.forEach(o => {
+                const key = o.sku.trim();
+                if (!demandBySku.has(key)) demandBySku.set(key, { category: o.category, name: o.name, sku: o.sku, qty: 0, rows: [] });
+                const item = demandBySku.get(key); item.qty += o.qty; item.rows.push(o);
+            });
+            filteredDeliveries.forEach(d => {
+                const key = d.sku.trim();
+                if (!supplyBySku.has(key)) supplyBySku.set(key, { category: d.category, name: d.name, sku: d.sku, qty: 0, rows: [] });
+                const item = supplyBySku.get(key); item.qty += d.qty; item.rows.push(d);
+            });
+
+            let exactItems = [], surplusItems = [], shortItems = [];
+            let shortItemsMap = new Map();
+            let remainingDemand = [], remainingSupply = [];
+            let allSkus = new Set([...demandBySku.keys(), ...supplyBySku.keys()]);
+            
+            allSkus.forEach(sku => {
+                if(!sku) return;
+                const demand = demandBySku.get(sku), supply = supplyBySku.get(sku);
+                const dQty = demand ? demand.qty : 0, sQty = supply ? supply.qty : 0;
+                
+                if (dQty === sQty && dQty > 0) { 
+                    demand.rows.forEach(row => { 
+                        row.matchType = "Khớp Mã"; 
+                        exactItems.push({ ...row, orderQty: row.qty, deliveredQty: row.qty }); 
+                    }); 
+                }
+                else if (dQty > sQty) { 
+                    const existingShort = shortItemsMap.get(sku);
+                    if (!existingShort) {
+                        const shortItem = {
+                            category: demand.category,
+                            sku: demand.sku, // Lấy sku từ demand object
+                            name: demand.name,
+                            orderQty: dQty,
+                            deliveredQty: sQty || 0,
+                            matchType: "Thiếu (Mã)"
+                        };
+                        shortItemsMap.set(sku, shortItem);
+                        shortItems.push(shortItem);
+                    }
+
+                    if (dQty - sQty > 0) {
+                        remainingDemand.push({ sku: demand.sku, category: demand.category, name: demand.name, qty: dQty - sQty });
+                    }
+                }
+                else { 
+                    if (dQty > 0) {
+                        demand.rows.forEach(row => { 
+                            row.matchType = "Dư (Mã)";
+                            surplusItems.push({ ...row, orderQty: row.qty, deliveredQty: row.qty });
+                        });
+                    }
+                    if (supply && sQty > 0 && dQty === 0) {
+                        surplusItems.push({
+                            category: supply.category, sku: supply.sku, name: supply.name, 
+                            orderQty: 0, deliveredQty: sQty, matchType: "Dư mã ngoài Order"
+                        });
+                    }
+                    remainingSupply.push({ sku, category: supply.category, name: supply.name, qty: sQty - dQty }); 
+                }
+            });
+
+            // Lớp 2: So sánh theo Tên nếu chưa khớp
+            if (matchType === 'two_layer' || matchType === 'only_name') {
+                let pendingDemandByName = new Map(), pendingSupplyByName = new Map();
+                remainingDemand.forEach(d => { const key = d.name.trim(); if (!pendingDemandByName.has(key)) pendingDemandByName.set(key, { qty: 0, items: [] }); pendingDemandByName.get(key).qty += d.qty; pendingDemandByName.get(key).items.push(d); });
+                remainingSupply.forEach(s => { const key = s.name.trim(); if (!pendingSupplyByName.has(key)) pendingSupplyByName.set(key, { qty: 0, items: [] }); pendingSupplyByName.get(key).qty += s.qty; pendingSupplyByName.get(key).items.push(s); });
+                let allNames = new Set([...pendingDemandByName.keys(), ...pendingSupplyByName.keys()]);
+                allNames.forEach(name => {
+                    if(!name) return;
+                    const dQty = pendingDemandByName.has(name) ? pendingDemandByName.get(name).qty : 0;
+                    const sQty = pendingSupplyByName.has(name) ? pendingSupplyByName.get(name).qty : 0;
+                    const matchedQty = Math.min(dQty, sQty);
+
+                    if (matchedQty > 0) {
+                        let orderItems = pendingDemandByName.get(name).items;
+                        let matchedCount = matchedQty;
+                        for (let item of orderItems) {
+                            let take = Math.min(matchedCount, item.qty);
+                            exactItems.push({ category: item.category, sku: item.sku, name: name, orderQty: take, deliveredQty: take, matchType: "Khớp Tên" });
+                            matchedCount -= take; if(matchedCount === 0) break;
+                        }
+                        
+                        const origItem = orderItems[0];
+                        let existingShort = shortItemsMap.get(origItem.sku);
+                        if (existingShort) {
+                            existingShort.deliveredQty += matchedQty;
+                            existingShort.matchType = "Thiếu (Gộp Mã lẻ)";
+                        }
+                    }
+
+                    const remD = Math.max(0, dQty - sQty);
+                    const remS = Math.max(0, sQty - dQty);
+                    
+                    if(remD > 0) {
+                        // Nếu số remD > 0, dùng hàm merge để cập nhật nó, nhưng đừng thêm dòng mới
+                    }
+                    if(remS > 0) {
+                        surplusItems.push({ 
+                            category: pendingSupplyByName.get(name).items[0].category, 
+                            sku: pendingSupplyByName.get(name).items[0].sku, 
+                            name: name, 
+                            orderQty: 0, 
+                            deliveredQty: remS, 
+                            matchType: "Dư (Khớp Tên)" 
+                        });
+                    }
+                });
+            }
+
+            // === TÍNH DỮ LIỆU CHO BIỂU ĐỒ ===
+            let catMapForChart = new Map();
+            filteredOrders.forEach(r => {
+                let cat = r.category || "Khác";
+                if(!catMapForChart.has(cat)) catMapForChart.set(cat, {name: cat, order: 0, dc: 0, filled: 0, unfilled: 0});
+                let g = catMapForChart.get(cat); g.order += r.qty;
+            });
+            filteredDeliveries.forEach(r => {
+                let cat = r.category || "Khác";
+                if(catMapForChart.has(cat)) { let g = catMapForChart.get(cat); g.dc += r.qty; }
+            });
+            catMapForChart.forEach((val) => {
+                val.filled = Math.min(val.order, val.dc);
+                val.unfilled = Math.max(0, val.order - val.filled);
+            });
+            let groupedData = Array.from(catMapForChart.values());
+            let totalOrderQty = 0, totalDeliveredQty = 0;
+            groupedData.forEach(i => { totalOrderQty += i.order; totalDeliveredQty += i.dc; });
+
+            // === TÍNH KPI CHỈ CẦN GIAO > 0 LÀ TÍNH MÃ ĐÃ LẤY ===
+            let totalOrderSKUs = new Set(demandBySku.keys());
+            let filledSKUs = new Set();
+            
+            demandBySku.forEach((val, sku) => {
+                const trimmedSku = sku.trim();
+                if(!trimmedSku) return;
+                const supply = supplyBySku.get(trimmedSku);
+                const sQty = supply ? supply.qty : 0;
+                if(sQty > 0) filledSKUs.add(trimmedSku);
+            });
+
+            if (matchType === 'two_layer' || matchType === 'only_name') {
+                 exactItems.forEach(item => {
+                     const trimmedSku = item.sku.trim();
+                     if(trimmedSku && !filledSKUs.has(trimmedSku) && item.matchType === "Khớp Tên") {
+                         filledSKUs.add(trimmedSku);
+                     }
+                 });
+            }
+
+            const countFilledSKU = filledSKUs.size;
+            const countTotalSKU = totalOrderSKUs.size;
+            const countUnfilledSKU = countTotalSKU - countFilledSKU; 
+
+            const fillRateCode = countTotalSKU > 0 ? (countFilledSKU / countTotalSKU * 100) : 0;
+            const fillRateQty = totalOrderQty > 0 ? (totalDeliveredQty / totalOrderQty * 100) : 0;
+
+            // === ÁP DỤNG HÀM GỘP THEO TÊN SP VÀO CÁC BẢNG ===
+            const finalShortItems = mergeByProductName(shortItems);
+            const finalSurplusItems = mergeByProductName(surplusItems);
+
+            return {
+                kpi: {
+                    k1: {val: fillRateCode.toFixed(1) + '%', sub: `${countFilledSKU} / ${countTotalSKU} mã đã lấy`},
+                    k2: {val: fillRateQty.toFixed(1) + '%', sub: `${totalDeliveredQty.toLocaleString()} / ${totalOrderQty.toLocaleString()} đơn vị`},
+                    k3: {val: countUnfilledSKU.toLocaleString(), sub: `${countTotalSKU > 0 ? (countUnfilledSKU/countTotalSKU*100).toFixed(1) : 0}% số mã`},
+                    k4: {val: totalOrderQty.toLocaleString(), sub: `Đã giao ${totalDeliveredQty.toLocaleString()} đv`},
+                    k5: {val: exactItems.length, sub: `Đủ: ${exactItems.length}, Dư: ${finalSurplusItems.length}, Thiếu: ${finalShortItems.length}`},
+                    donut: { exact: exactItems.length, surplus: finalSurplusItems.length, short: finalShortItems.length, unfilled: finalShortItems.filter(i => i.orderQty > 0 && i.deliveredQty === 0).length }
+                },
+                details: { exactItems, surplusItems: finalSurplusItems, shortItems: finalShortItems },
+                chartData: groupedData
+            };
+        }
+
+        function renderDashboard(result) {
+            lastResult = result; 
+            const kpi = result.kpi; const details = result.details; const groupedData = result.chartData;
+            document.getElementById('kpi1_val').innerText = kpi.k1.val; document.getElementById('kpi1_sub').innerText = kpi.k1.sub;
+            document.getElementById('kpi2_val').innerText = kpi.k2.val; document.getElementById('kpi2_sub').innerText = kpi.k2.sub;
+            document.getElementById('kpi3_val').innerText = kpi.k3.val; document.getElementById('kpi3_sub').innerText = kpi.k3.sub;
+            document.getElementById('kpi4_val').innerText = kpi.k4.val; document.getElementById('kpi4_sub').innerText = kpi.k4.sub;
+            document.getElementById('kpi5_val').innerText = kpi.k5.val; document.getElementById('kpi5_sub').innerText = kpi.k5.sub;
+
+            const cats = groupedData.map(i => i.name);
+            chartBarStack.setOption({
+                tooltip: { trigger: 'axis' }, legend: { data: ['Đã lấy', 'Chưa lấy'], bottom: 0 },
+                grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                xAxis: { type: 'value' }, yAxis: { type: 'category', data: cats },
+                series: [
+                    { name: 'Đã lấy', type: 'bar', stack: 'total', barWidth: 15, itemStyle: { color: '#4CAF50' }, label: { show: true, position: 'inside' }, data: groupedData.map(i => i.filled) },
+                    { name: 'Chưa lấy', type: 'bar', stack: 'total', itemStyle: { color: '#D32F2F' }, label: { show: true, position: 'inside' }, data: groupedData.map(i => i.unfilled) }
+                ]
+            }, true);
+
+            chartDonut.setOption({
+                tooltip: { trigger: 'item' }, 
+                legend: { bottom: '0%', left: 'center', orient: 'horizontal', icon: 'circle' }, 
+                series: [{ type: 'pie', radius: ['40%', '70%'], data: [
+                    { value: kpi.donut.exact, name: 'Giao đúng', itemStyle: { color: '#4CAF50' } },
+                    { value: kpi.donut.surplus, name: 'Giao dư', itemStyle: { color: '#1976D2' } },
+                    { value: kpi.donut.short, name: 'Giao thiếu', itemStyle: { color: '#FBC02D' } },
+                    { value: kpi.donut.unfilled, name: 'Chưa giao', itemStyle: { color: '#D32F2F' } }
+                ]}]
+            }, true);
+
+            chartGroupedBar.setOption({
+                tooltip: { trigger: 'axis' }, legend: { data: ['Order', 'Đã giao'], bottom: 0 },
+                grid: { left: '3%', right: '4%', bottom: '20%', containLabel: true },
+                xAxis: { type: 'category', data: cats, axisLabel: { interval: 0, rotate: 15 } },
+                yAxis: { type: 'value' },
+                series: [
+                    { name: 'Order', type: 'bar', barWidth: 20, itemStyle: { color: '#1976D2' }, label: { show: true, position: 'top' }, data: groupedData.map(i => i.order) },
+                    { name: 'Đã giao', type: 'bar', barWidth: 20, itemStyle: { color: '#4CAF50' }, label: { show: true, position: 'top' }, data: groupedData.map(i => i.dc) }
+                ]
+            }, true);
+
+            renderDetailTable('tab-ok', details.exactItems, 'Giao đúng');
+            renderDetailTable('tab-surplus', details.surplusItems, 'Giao dư');
+            renderDetailTable('tab-short', details.shortItems, 'Giao thiếu');
+        }
+
+        function renderDetailTable(containerId, items, status) {
+            const container = document.getElementById(containerId);
+            if(!items || items.length === 0) { container.innerHTML = `<div class="empty-msg">Không có SP nào trạng thái: ${status}</div>`; return; }
+            let html = `<table><thead><tr><th>Nhóm hàng</th><th>Mã SP</th><th>Tên SP</th><th>Trạng thái</th><th>SL Order</th><th>SL Giao</th><th>Chênh lệch</th></tr></thead><tbody>`;
+            items.forEach(item => {
+                const delivered = item.deliveredQty || 0;
+                const order = item.orderQty || 0;
+                const diff = delivered - order;
+                html += `<tr><td>${item.category}</td><td style="font-weight:500;">${item.sku || '(Trống)'}</td><td style="font-weight:bold;">${item.name}</td>
+                <td><span style="background:#eef; padding:2px 6px; border-radius:10px; font-size:11px;">${item.matchType || status}</span></td>
+                <td>${order}</td><td>${delivered}</td>
+                <td style="color: ${diff > 0 ? '#1976D2' : (diff < 0 ? '#D32F2F' : '#333')}; font-weight: bold;">${diff}</td></tr>`;
+            });
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function updateDashboard() {
+            const filterType = document.getElementById('timeFilter').value;
+            const matchType = document.getElementById('matchType').value;
+            const filteredOrders = filterArrayByTime(rawOrders, filterType);
+            const filteredDeliveries = filterArrayByTime(rawDeliveries, filterType);
+            if (filteredOrders.length === 0 && filteredDeliveries.length === 0) {
+                alert(`Không tìm thấy dữ liệu cho mốc thời gian này.`);
+                return;
+            }
+            const result = processTwoLayerLogic(filteredOrders, filteredDeliveries, matchType);
+            renderDashboard(result);
+            document.getElementById('currentTime').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            const filePromises = Array.from(files).map((file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                            
+                            if (rows.length < 2) { reject(new Error(`File "${file.name}" không có dữ liệu.`)); return; }
+
+                            let orderItems = [], deliveryItems = [];
+                            for (let i = 1; i < rows.length; i++) {
+                                const row = rows[i];
+                                if (!row || row.length === 0) continue;
+
+                                let date = null;
+                                if (row[8]) {
+                                    const dateVal = String(row[8]);
+                                    if (dateVal) {
+                                        const parts = dateVal.split('/');
+                                        if (parts.length === 3) date = new Date(parts[2], parts[1] - 1, parts[0]);
+                                    }
+                                }
+                                
+                                const oQty = parseInt(String(row[3] || "0").replace(/[^0-9]/g, '')) || 0;
+                                if (oQty > 0) {
+                                    orderItems.push({
+                                        category: String(row[0] || "Khác").trim(), sku: String(row[1] || "").trim(), name: String(row[2] || "").trim(), qty: oQty, date: date
+                                    });
+                                }
+
+                                const dQty = parseInt(String(row[7] || "0").replace(/[^0-9]/g, '')) || 0;
+                                if (dQty > 0) {
+                                    deliveryItems.push({
+                                        category: String(row[4] || "Khác").trim(), sku: String(row[5] || "").trim(), name: String(row[6] || "").trim(), qty: dQty, date: date
+                                    });
+                                }
+                            }
+
+                            if (orderItems.length === 0 && deliveryItems.length === 0) {
+                                reject(new Error(`File "${file.name}" không có đơn hàng/giao hàng nào hợp lệ.`));
+                                return;
+                            }
+                            resolve({ orders: orderItems, deliveries: deliveryItems, fileName: file.name });
+                        } catch (err) {
+                            reject(new Error(`Lỗi đọc file "${file.name}": ${err.message}`));
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            });
+
+            Promise.all(filePromises)
+                .then(results => {
+                    rawOrders = []; rawDeliveries = [];
+                    results.forEach(res => {
+                        rawOrders = rawOrders.concat(res.orders);
+                        rawDeliveries = rawDeliveries.concat(res.deliveries);
+                    });
+                    updateDashboard();
+                })
+                .catch(err => {
+                    alert(`🚫 LỖI XỬ LÝ FILE!\nChi tiết: ${err.message}`);
+                });
+        });
+
+        document.getElementById('timeFilter').addEventListener('change', function() { if(rawOrders.length > 0) updateDashboard(); });
+        document.getElementById('matchType').addEventListener('change', function() { if(rawOrders.length > 0) updateDashboard(); });
+
+        async function exportReportToExcel() {
+            if (!lastResult) { alert("Vui lòng tải dữ liệu lên trước!"); return; }
+            try {
+                await new Promise(r => setTimeout(r, 300));
+
+                const getChartImg = async (chart) => {
+                    return chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' });
+                };
+                
+                const imgs = [await getChartImg(chartBarStack), await getChartImg(chartDonut), await getChartImg(chartGroupedBar)];
+                const toBuffer = async (url) => { const res = await fetch(url); return await res.arrayBuffer(); };
+
+                const wb = new ExcelJS.Workbook();
+                const sheet = wb.addWorksheet('Báo cáo Tổng hợp');
+                sheet.columns = [{ width: 25 }, { width: 25 }, { width: 25 }];
+                const kpi = lastResult.kpi;
+                sheet.getRow(1).values = ['CHỈ SỐ KPI', 'GIÁ TRỊ', 'CHI TIẾT'];
+                const keys = ['k1', 'k2', 'k3', 'k4', 'k5'];
+                for(let i=2; i<=6; i++) {
+                    const row = sheet.getRow(i);
+                    row.values = ['Fill Rate ' + (i-1), kpi[keys[i-2]].val, kpi[keys[i-2]].sub];
+                }
+                const addImg = async (imgData, startRow) => {
+                    const buffer = await toBuffer(imgData);
+                    const id = wb.addImage({ buffer: buffer, extension: 'png' });
+                    sheet.addImage(id, { tl: { col: 0, row: startRow }, ext: { width: 600, height: 300 } });
+                };
+                await addImg(imgs[0], 8); await addImg(imgs[1], 26); await addImg(imgs[2], 44);
+
+                const detailSheet = wb.addWorksheet('Chi tiết');
+                const details = lastResult.details;
+                let cRow = 1;
+                const writeTbl = (title, data) => {
+                    detailSheet.getRow(cRow).values = [title]; cRow+=2;
+                    if(!data || data.length===0){ detailSheet.getRow(cRow).values = ['Không có dữ liệu']; cRow++; return; }
+                    detailSheet.getRow(cRow).values = ['Nhóm hàng', 'Mã SP', 'Tên SP', 'SL Order', 'SL Giao', 'Chênh lệch']; cRow++;
+                    data.forEach(item => {
+                        const delivered = item.deliveredQty || 0;
+                        const order = item.orderQty || 0;
+                        const diff = delivered - order;
+                        detailSheet.getRow(cRow).values = [item.category, item.sku, item.name, order, delivered, diff];
+                        cRow++;
+                    }); cRow += 2;
+                };
+                writeTbl('1. Giao đúng', details.exactItems);
+                writeTbl('2. Giao dư', details.surplusItems);
+                writeTbl('3. Giao thiếu', details.shortItems);
+
+                const buffer = await wb.xlsx.writeBuffer();
+                saveAs(new Blob([buffer], { type: 'application/octet-stream' }), `Bao_cao_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } catch (error) { 
+                alert("Lỗi xuất file: " + error.message); 
+            }
+        }
+
+        window.onload = function() {
+            chartBarStack = echarts.init(document.getElementById('chartBarStack'));
+            chartDonut = echarts.init(document.getElementById('chartDonut'));
+            chartGroupedBar = echarts.init(document.getElementById('chartGroupedBar'));
+            window.addEventListener('resize', () => { chartBarStack.resize(); chartDonut.resize(); chartGroupedBar.resize(); });
+            document.getElementById('currentTime').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
+        };
+    </script>
+</body>
+</html>
