@@ -476,60 +476,63 @@
         document.getElementById('timeFilter').addEventListener('change', function() { if(rawOrders.length > 0) updateDashboard(); });
         document.getElementById('matchType').addEventListener('change', function() { if(rawOrders.length > 0) updateDashboard(); });
 
-        async function exportReportToExcel() {
-            if (!lastResult) { alert("Vui lòng tải dữ liệu lên trước!"); return; }
-            try {
-                await new Promise(r => setTimeout(r, 300));
+        // === HÀM XUẤT EXCEL MỚI (ĐƠN GIẢN, CHỈ CÓ 3 SHEET, KHÔNG CÓ ẢNH) ===
+async function exportReportToExcel() {
+    if (!lastResult) { 
+        alert("Vui lòng tải dữ liệu và chạy báo cáo trước khi xuất file!");
+        return; 
+    }
+    try {
+        const details = lastResult.details;
+        const wb = new ExcelJS.Workbook();
 
-                const getChartImg = async (chart) => {
-                    return chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' });
-                };
-                
-                const imgs = [await getChartImg(chartBarStack), await getChartImg(chartDonut), await getChartImg(chartGroupedBar)];
-                const toBuffer = async (url) => { const res = await fetch(url); return await res.arrayBuffer(); };
-
-                const wb = new ExcelJS.Workbook();
-                const sheet = wb.addWorksheet('Báo cáo Tổng hợp');
-                sheet.columns = [{ width: 25 }, { width: 25 }, { width: 25 }];
-                const kpi = lastResult.kpi;
-                sheet.getRow(1).values = ['CHỈ SỐ KPI', 'GIÁ TRỊ', 'CHI TIẾT'];
-                const keys = ['k1', 'k2', 'k3', 'k4', 'k5'];
-                for(let i=2; i<=6; i++) {
-                    const row = sheet.getRow(i);
-                    row.values = ['Fill Rate ' + (i-1), kpi[keys[i-2]].val, kpi[keys[i-2]].sub];
-                }
-                const addImg = async (imgData, startRow) => {
-                    const buffer = await toBuffer(imgData);
-                    const id = wb.addImage({ buffer: buffer, extension: 'png' });
-                    sheet.addImage(id, { tl: { col: 0, row: startRow }, ext: { width: 600, height: 300 } });
-                };
-                await addImg(imgs[0], 8); await addImg(imgs[1], 26); await addImg(imgs[2], 44);
-
-                const detailSheet = wb.addWorksheet('Chi tiết');
-                const details = lastResult.details;
-                let cRow = 1;
-                const writeTbl = (title, data) => {
-                    detailSheet.getRow(cRow).values = [title]; cRow+=2;
-                    if(!data || data.length===0){ detailSheet.getRow(cRow).values = ['Không có dữ liệu']; cRow++; return; }
-                    detailSheet.getRow(cRow).values = ['Nhóm hàng', 'Mã SP', 'Tên SP', 'SL Order', 'SL Giao', 'Chênh lệch']; cRow++;
-                    data.forEach(item => {
-                        const delivered = item.deliveredQty || 0;
-                        const order = item.orderQty || 0;
-                        const diff = delivered - order;
-                        detailSheet.getRow(cRow).values = [item.category, item.sku, item.name, order, delivered, diff];
-                        cRow++;
-                    }); cRow += 2;
-                };
-                writeTbl('1. Giao đúng', details.exactItems);
-                writeTbl('2. Giao dư', details.surplusItems);
-                writeTbl('3. Giao thiếu', details.shortItems);
-
-                const buffer = await wb.xlsx.writeBuffer();
-                saveAs(new Blob([buffer], { type: 'application/octet-stream' }), `Bao_cao_${new Date().toISOString().split('T')[0]}.xlsx`);
-            } catch (error) { 
-                alert("Lỗi xuất file: " + error.message); 
+        // Hàm phụ trợ để tạo 1 sheet dữ liệu
+        const createSheet = (sheetName, data) => {
+            const sheet = wb.addWorksheet(sheetName);
+            
+            // Tạo dòng Header
+            const headers = ['Nhóm hàng', 'Mã SP', 'Tên SP', 'SL Order', 'SL Giao', 'Chênh lệch'];
+            const headerRow = sheet.addRow(headers);
+            headerRow.font = { bold: true };
+            
+            // Nếu có dữ liệu thì ghi vào, nếu không thì ghi thông báo
+            if (data && data.length > 0) {
+                data.forEach(item => {
+                    const delivered = item.deliveredQty || 0;
+                    const order = item.orderQty || 0;
+                    const diff = delivered - order;
+                    sheet.addRow([item.category, item.sku || '', item.name, order, delivered, diff]);
+                });
+            } else {
+                sheet.addRow(['Không có dữ liệu']);
             }
-        }
+            
+            // Tự động co giãn độ rộng cột cho dễ nhìn
+            sheet.columns = [
+                { width: 20 }, // Nhóm hàng
+                { width: 22 }, // Mã SP
+                { width: 30 }, // Tên SP
+                { width: 15 }, // SL Order
+                { width: 15 }, // SL Giao
+                { width: 15 }  // Chênh lệch
+            ];
+        };
+
+        // Tạo 3 sheet: Giao đúng, Giao dư, Giao thiếu
+        createSheet('Giao đúng', details.exactItems);
+        createSheet('Giao dư', details.surplusItems);
+        createSheet('Giao thiếu', details.shortItems);
+
+        // Xuất file xuống máy
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `Bao_cao_chi_tiet_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    } catch (error) {
+        console.error(error);
+        alert("Có lỗi xảy ra khi xuất file Excel: " + error.message);
+    }
+}
 
         window.onload = function() {
             chartBarStack = echarts.init(document.getElementById('chartBarStack'));
