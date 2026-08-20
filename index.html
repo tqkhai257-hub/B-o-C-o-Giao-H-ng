@@ -144,7 +144,7 @@
       </select>
       <input id="treeSearch" placeholder="Tìm mã / tên..." style="flex:1;min-width:140px">
       <button class="xbtn" id="uploadBtn" style="background:var(--blue);color:#fff;">📤 Chọn File Excel</button>
-      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" multiple style="display:none">
       <button class="xbtn xls" id="expChua">⬇ Excel: Chưa lấy</button>
       <button class="xbtn xls" id="expSai">⬇ Excel: Sai lệch</button>
       <button class="xbtn xls" id="expAll">⬇ Excel: Tất cả</button>
@@ -163,49 +163,75 @@ function nf(x){ return (x==null?0:x).toLocaleString('vi-VN'); }
 // ================= XỬ LÝ UPLOAD FILE EXCEL =================
 document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
 document.getElementById('fileInput').addEventListener('change', function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      if (rows.length < 2) { alert("File không có dữ liệu."); return; }
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
 
-      let orders = [], deliveries = [];
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0) continue;
+  // Biến lưu trữ dữ liệu tổng hợp từ tất cả file
+  let allOrders = [];
+  let allDeliveries = [];
+  let processedCount = 0;
 
-        const order = {
-          group: String(row[0] || "Khác").trim(),
-          code: String(row[1] || "").trim(),
-          name: String(row[2] || "").trim(),
-          qty: parseInt(String(row[3] || "0").replace(/[^0-9]/g, '')) || 0,
-          date: row[8] ? new Date(row[8]) : null
-        };
-        const delivery = {
-          group: String(row[4] || "Khác").trim(),
-          code: String(row[5] || "").trim(),
-          name: String(row[6] || "").trim(),
-          qty: parseInt(String(row[7] || "0").replace(/[^0-9]/g, '')) || 0,
-          date: row[8] ? new Date(row[8]) : null
-        };
-        if (order.qty > 0) orders.push(order);
-        if (delivery.qty > 0) deliveries.push(delivery);
+  // Dùng vòng lặp để đọc từng file một
+  for (let file of files) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        
+        if (rows.length < 2) {
+          alert(`File "${file.name}" không có dữ liệu.`);
+          processedCount++;
+          checkComplete();
+          return;
+        }
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+
+          const order = {
+            group: String(row[0] || "Khác").trim(),
+            code: String(row[1] || "").trim(),
+            name: String(row[2] || "").trim(),
+            qty: parseInt(String(row[3] || "0").replace(/[^0-9]/g, '')) || 0,
+            date: row[8] ? new Date(row[8]) : null
+          };
+          const delivery = {
+            group: String(row[4] || "Khác").trim(),
+            code: String(row[5] || "").trim(),
+            name: String(row[6] || "").trim(),
+            qty: parseInt(String(row[7] || "0").replace(/[^0-9]/g, '')) || 0,
+            date: row[8] ? new Date(row[8]) : null
+          };
+          if (order.qty > 0) allOrders.push(order);
+          if (delivery.qty > 0) allDeliveries.push(delivery);
+        }
+        processedCount++;
+        checkComplete();
+      } catch(err) {
+        alert(`Lỗi đọc file "${file.name}": ` + err.message);
+        processedCount++;
+        checkComplete();
       }
-      if (orders.length === 0 && deliveries.length === 0) { alert("Không tìm thấy dữ liệu hợp lệ."); return; }
-      
-      processLogic(orders, deliveries);
-      document.getElementById('src').innerHTML = `Đã xử lý <b>${orders.length}</b> dòng Order & <b>${deliveries.length}</b> dòng Giao`;
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Hàm kiểm tra khi nào đọc xong tất cả file
+  function checkComplete() {
+    if (processedCount === files.length) {
+      if (allOrders.length === 0 && allDeliveries.length === 0) {
+        alert("Không tìm thấy dữ liệu hợp lệ từ các file đã chọn.");
+        return;
+      }
+      processLogic(allOrders, allDeliveries);
+      document.getElementById('src').innerHTML = `Đã xử lý <b>${files.length}</b> file (${allOrders.length} Order & ${allDeliveries.length} Giao)`;
       document.getElementById('upd').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
-    } catch(err) {
-      alert("Lỗi đọc file: " + err.message);
     }
-  };
-  reader.readAsArrayBuffer(file);
+  }
 });
 
 // ================= LOGIC SO SÁNH & TÍNH KPI CHUẨN (Chỉ cần Giao > 0 = Đã lấy) =================
