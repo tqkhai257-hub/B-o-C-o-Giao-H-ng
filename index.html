@@ -1,546 +1,367 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fill Rate DC </title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-    
-    <style>
-        :root { --bg-color: #f0f2f5; --card-bg: #ffffff; --text-main: #333; --text-gray: #666; --primary-blue: #1976D2; --primary-green: #4CAF50; --primary-red: #D32F2F; --shadow: 0 2px 10px rgba(0,0,0,0.08); --radius: 8px; }
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background-color: var(--bg-color); color: var(--text-main); }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
-        .header-title h1 { margin: 0; color: #f57c00; font-size: 24px; }
-        .control-area { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: white; padding: 10px 15px; border-radius: var(--radius); box-shadow: var(--shadow); }
-        .control-area select, .control-area button { padding: 6px 12px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; cursor: pointer; }
-        .btn-primary { background: var(--primary-blue); color: white; border: none; }
-        .btn-success { background: var(--primary-green); color: white; border: none; }
-        .kpi-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .kpi-card { background: var(--card-bg); border-radius: var(--radius); padding: 15px 20px; box-shadow: var(--shadow); border-top: 2px solid var(--primary-blue); }
-        .kpi-title { font-size: 12px; color: var(--text-gray); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
-        .kpi-value { font-size: 24px; font-weight: bold; margin: 0; } .kpi-sub { font-size: 12px; color: var(--text-gray); margin-top: 5px; }
-        .charts-row { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
-        .charts-row .col-half { flex: 1; min-width: 400px; }
-        .chart-box { background: var(--card-bg); border-radius: var(--radius); padding: 15px; box-shadow: var(--shadow); height: 350px; }
-        @media (max-width: 850px) { .charts-row .col-half { min-width: 100%; } }
-        .detail-section { margin-top: 25px; background: var(--card-bg); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
-        .detail-tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .tab-btn { padding: 8px 16px; border: 1px solid transparent; background: transparent; cursor: pointer; border-radius: 20px; font-weight: 500; }
-        .tab-btn.active-ok { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
-        .tab-btn.active-surplus { background: #e3f2fd; color: #0d47a1; border-color: #90caf9; }
-        .tab-btn.active-short { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
-        .detail-content { display: none; max-height: 400px; overflow-y: auto; }
-        .detail-content.active { display: block; }
-        .detail-content table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        .detail-content th, .detail-content td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
-        .empty-msg { color: #999; text-align: center; padding: 20px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Fill Rate - Upload & Process Excel</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f1f5f9; --panel:#ffffff; --panel2:#f8fafc; --line:#e2e8f0;
+    --txt:#1e293b; --mut:#64748b;
+    --red:#dc2626; --yellow:#d97706; --green:#16a34a; --blue:#2563eb;
+    --shadow:0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.04);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);padding:20px;font-size:14px}
+  .head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .head h1{font-size:20px;font-weight:700}
+  .head .meta{font-size:12px;color:var(--mut);text-align:right}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+  .card .lbl{font-size:12px;color:var(--mut);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+  .card .val{font-size:28px;font-weight:800;line-height:1}
+  .card .sub{font-size:12px;color:var(--mut);margin-top:6px}
+  .section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .section h2{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700}
+  .chartgrid{display:grid;grid-template-columns:1fr;gap:18px;margin-bottom:18px}
+  @media(min-width:900px){.chartgrid{grid-template-columns:3fr 2fr}}
+  .chartbox{position:relative;height:300px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;position:sticky;top:0;background:var(--panel);cursor:pointer;user-select:none}
+  th:hover{color:var(--txt)}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:hover td{background:var(--panel2)}
+  .pill{padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700}
+  .scroll{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+  select,input{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px}
+  .chip{font-size:12px;color:var(--mut)}
+  .split{display:grid;grid-template-columns:1fr;gap:18px}
+  @media(min-width:1100px){.split{grid-template-columns:1fr 1fr}}
+  .mini{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+  .mini div{font-size:12px;color:var(--mut)}
+  .mini b{color:var(--txt)}
+  .xbtn{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .xbtn:hover{background:var(--panel2)}
+  .xbtn.xls{background:var(--green);color:#fff;border-color:var(--green)}
+  .xbtn.xls:hover{filter:brightness(.93)}
+  .tnode{border-bottom:1px solid var(--line)}
+  .trow{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;user-select:none}
+  .trow:hover{background:var(--panel2)}
+  .tw{width:14px;display:inline-block;color:var(--mut);transition:transform .15s;font-size:11px}
+  .tw.open{transform:rotate(90deg)}
+  .tname{flex:1;font-weight:600}
+  .tname.lvl2{font-weight:500;color:var(--mut)}
+  .tcount{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+  .tbadge{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;color:#fff}
+  .tchild{display:none}
+  .tchild.open{display:block}
+  .tleaf{display:grid;grid-template-columns:1fr 70px 70px 70px 90px;gap:8px;padding:5px 10px 5px 44px;font-size:12.5px;border-top:1px solid var(--line);align-items:center}
+  .tleaf:hover{background:var(--panel2)}
+  .tleaf .r{text-align:right;font-variant-numeric:tabular-nums}
+  .st{font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;color:#fff;text-align:center}
+</style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-title">
-            <h1>📦 Đối chiếu Order / Giao </h1>
-            <small>KINGKONGMART 02(BÃI TRƯỜNG)</small>
-        </div>
-        <div class="control-area">
-            <span id="currentTime" style="font-size:13px; color:#666;">Cập nhật: ...</span>
-            <select id="matchType" style="min-width:180px; font-weight: 500;">
-                <option value="two_layer">🔁 Mã trước, Tên sau</option>
-                <option value="only_sku">🔑 Chỉ so Mã SKU</option>
-                <option value="only_name">📛 Chỉ so Tên SP</option>
-            </select>
-            <select id="timeFilter" style="min-width:100px;">
-                <option value="today">Hôm nay</option>
-                <option value="week">Tuần này</option>
-                <option value="month">Tháng này</option>
-                <option value="all">Tất cả</option>
-            </select>
-            <input type="file" id="fileInput" accept=".xlsx,.xls" multiple style="display:none">
-            <button class="btn-primary" onclick="document.getElementById('fileInput').click()">📤 Chọn File Excel</button>
-            <button class="btn-success" id="exportBtn" onclick="exportReportToExcel()">📥 Xuất báo cáo</button>
-        </div>
+  <div class="head">
+    <div>
+      <h1>📦 Fill Rate DC (Fix KPI Chuẩn)</h1>
+      <div class="chip" id="src">Vui lòng tải file Excel dữ liệu lên</div>
+    </div>
+    <div class="meta" id="upd"></div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="chartgrid">
+    <div class="section" style="margin:0">
+      <h2>Cơ cấu mã theo ngành — Đã lấy vs Chưa lấy <span class="chip" id="ngHint"></span></h2>
+      <div class="chartbox"><canvas id="chNganh"></canvas></div>
+    </div>
+    <div class="section" style="margin:0">
+      <h2 id="donutTitle">Cơ cấu mã hàng</h2>
+      <div class="chartbox"><canvas id="chStatus"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Order vs DC chuyển theo ngành <span class="chip">(đơn vị sản phẩm)</span></h2>
+    <div class="chartbox" style="height:260px"><canvas id="chVol"></canvas></div>
+  </div>
+
+  <div class="split">
+    <div class="section">
+      <h2>⚠️ Mã CHƯA LẤY <span class="badge" style="background:var(--red);color:#fff" id="chuaCount"></span></h2>
+      <div class="toolbar">
+        <select id="chuaNganh"><option value="">Tất cả ngành</option></select>
+        <input id="chuaSearch" placeholder="Tìm mã / tên..." style="flex:1;min-width:120px">
+      </div>
+      <div class="scroll">
+        <table id="chuaTbl"><thead><tr>
+          <th data-k="nganh">Ngành</th><th data-k="ten">Tên hàng</th>
+          <th class="num" data-k="order">Order</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="mini" id="chuaSum"></div>
     </div>
 
-    <div class="kpi-container" id="kpiContainer">
-        <div class="kpi-card"><div class="kpi-title">FILL RATE TỔNG (THEO MÃ SP)</div><div class="kpi-value" id="kpi1_val">0%</div><div class="kpi-sub" id="kpi1_sub">0 / 0 mã đã lấy</div></div>
-        <div class="kpi-card"><div class="kpi-title">FILL RATE THEO SẢN LƯỢNG</div><div class="kpi-value" id="kpi2_val">0%</div><div class="kpi-sub" id="kpi2_sub">0 / 0 đơn vị</div></div>
-        <div class="kpi-card"><div class="kpi-title">MÃ SP CHƯA LẤY (Giao = 0)</div><div class="kpi-value" id="kpi3_val">0</div><div class="kpi-sub" id="kpi3_sub">0% số mã</div></div>
-        <div class="kpi-card"><div class="kpi-title">TỔNG SL ORDER</div><div class="kpi-value" id="kpi4_val">0</div><div class="kpi-sub" id="kpi4_sub">Đã giao 0 đv</div></div>
-        <div class="kpi-card"><div class="kpi-title">ĐÁNH GIÁ CHI TIẾT Mã</div><div class="kpi-value" id="kpi5_val">0</div><div class="kpi-sub" id="kpi5_sub">Đủ: 0, Dư: 0, Thiếu: 0</div></div>
+    <div class="section">
+      <h2>🔄 Sai lệch số lượng <span class="chip">(đã lấy nhưng dư/thiếu)</span></h2>
+      <div class="toolbar">
+        <select id="slLoai"><option value="">Dư + Thiếu</option><option value="Thieu">Chỉ Thiếu</option><option value="Du">Chỉ Dư</option></select>
+        <input id="slSearch" placeholder="Tìm mã / tên..." style="flex:1;min-width:120px">
+      </div>
+      <div class="scroll">
+        <table id="slTbl"><thead><tr>
+          <th data-k="ten">Tên hàng</th>
+          <th class="num" data-k="order">Order</th>
+          <th class="num" data-k="chuyen">Chuyển</th>
+          <th class="num" data-k="chenh">Chênh</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="mini" id="slSum"></div>
     </div>
+  </div>
 
-    <div class="charts-row">
-        <div class="col-half"><div class="chart-box" id="chartBarStack"></div></div>
-        <div class="col-half"><div class="chart-box" id="chartDonut"></div></div>
+  <div class="section">
+    <h2>🌳 Drill-down Ngành → Nhóm → Mã
+      <span class="chip">bấm để mở rộng</span>
+      <span style="flex:1"></span>
+      <button class="xbtn" id="expandAll">Mở tất cả</button>
+      <button class="xbtn" id="collapseAll">Thu gọn</button>
+    </h2>
+    <div class="toolbar">
+      <select id="treeTT">
+        <option value="">Tất cả trạng thái</option>
+        <option value="Chưa lấy">Chưa lấy</option>
+        <option value="Lấy thiếu">Lấy thiếu</option>
+        <option value="Lấy dư">Lấy dư</option>
+        <option value="Lấy đủ">Lấy đủ</option>
+      </select>
+      <input id="treeSearch" placeholder="Tìm mã / tên..." style="flex:1;min-width:140px">
+      <button class="xbtn" id="uploadBtn" style="background:var(--blue);color:#fff;">📤 Chọn File Excel</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+      <button class="xbtn xls" id="expChua">⬇ Excel: Chưa lấy</button>
+      <button class="xbtn xls" id="expSai">⬇ Excel: Sai lệch</button>
+      <button class="xbtn xls" id="expAll">⬇ Excel: Tất cả</button>
     </div>
-    <div class="charts-row">
-        <div class="col-full"><div class="chart-box chart-box-full" id="chartGroupedBar"></div></div>
-    </div>
+    <div class="scroll" style="max-height:520px" id="tree"></div>
+  </div>
 
-    <div class="detail-section">
-        <h4>📋 Bảng chi tiết đối chiếu</h4>
-        <div class="detail-tabs">
-            <button class="tab-btn active-ok" onclick="switchTab('tab-ok', this)">✅ Giao đúng</button>
-            <button class="tab-btn active-surplus" onclick="switchTab('tab-surplus', this)">⚠️ Giao dư</button>
-            <button class="tab-btn active-short" onclick="switchTab('tab-short', this)">❌ Giao thiếu</button>
-        </div>
-        <div id="tab-ok" class="detail-content active"><div class="empty-msg">Chưa có dữ liệu.</div></div>
-        <div id="tab-surplus" class="detail-content"><div class="empty-msg">Chưa có dữ liệu.</div></div>
-        <div id="tab-short" class="detail-content"><div class="empty-msg">Chưa có dữ liệu.</div></div>
-    </div>
+<script>
+// Biến lưu trữ dữ và chart
+let DATA = null;
+let charts = {};
 
-    <script>
-        let rawOrders = [], rawDeliveries = [];
-        let chartBarStack, chartDonut, chartGroupedBar;
-        let lastResult = null;
+// Hàm tiện ích
+function nf(x){ return (x==null?0:x).toLocaleString('vi-VN'); }
 
-        function switchTab(tabId, btnElement) {
-            document.querySelectorAll('.detail-content').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.querySelectorAll('.detail-tabs .tab-btn').forEach(b => b.style.background = 'transparent');
-            btnElement.style.background = '#f0f0f0';
-        }
-
-        function filterArrayByTime(arr, filterType) {
-            if (filterType === 'all') return arr;
-            const today = new Date(); today.setHours(0,0,0,0);
-            return arr.filter(row => {
-                if(!row.date) return true;
-                const rowDate = new Date(row.date); rowDate.setHours(0,0,0,0);
-                if(isNaN(rowDate.getTime())) return true;
-                if (filterType === 'today') return rowDate.getTime() === today.getTime();
-                else if (filterType === 'week') {
-                    const getWeek = (d) => { d = new Date(d); d.setHours(0,0,0,0); d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7); };
-                    return getWeek(rowDate) === getWeek(today) && rowDate.getFullYear() === today.getFullYear();
-                } else if (filterType === 'month') return rowDate.getMonth() === today.getMonth() && rowDate.getFullYear() === today.getFullYear();
-                return true;
-            });
-        }
-
-        // === HÀM GỘP DÒNG THEO TÊN SP (Ưu tiên lấy Mã thật để hiển thị) ===
-        function mergeByProductName(items) {
-            const map = new Map();
-            items.forEach(item => {
-                const key = `${item.category}|${item.name.trim()}`;
-                if (!map.has(key)) {
-                    map.set(key, { ...item, sku: item.sku || '(Trống)' });
-                } else {
-                    const existing = map.get(key);
-                    existing.orderQty = (existing.orderQty || 0) + (item.orderQty || 0);
-                    existing.deliveredQty = (existing.deliveredQty || 0) + (item.deliveredQty || 0);
-                    
-                    // Nếu mã hiện tại đang bị trống, và mã mới có giá trị -> Cập nhật lại
-                    const currentSku = existing.sku;
-                    const newSku = item.sku;
-                    if ((!currentSku || currentSku === '(Trống)') && newSku && newSku !== '(Trống)') {
-                        existing.sku = newSku;
-                    }
-                    existing.matchType = "Tổng hợp (Gộp theo Tên)";
-                }
-            });
-            return Array.from(map.values());
-        }
-
-        function processTwoLayerLogic(filteredOrders, filteredDeliveries, matchType) {
-            // Lưu dữ liệu vào Map để tiện so sánh
-            let demandBySku = new Map(), supplyBySku = new Map(); 
-            filteredOrders.forEach(o => {
-                const key = o.sku.trim();
-                if (!demandBySku.has(key)) demandBySku.set(key, { category: o.category, name: o.name, sku: o.sku, qty: 0, rows: [] });
-                const item = demandBySku.get(key); item.qty += o.qty; item.rows.push(o);
-            });
-            filteredDeliveries.forEach(d => {
-                const key = d.sku.trim();
-                if (!supplyBySku.has(key)) supplyBySku.set(key, { category: d.category, name: d.name, sku: d.sku, qty: 0, rows: [] });
-                const item = supplyBySku.get(key); item.qty += d.qty; item.rows.push(d);
-            });
-
-            let exactItems = [], surplusItems = [], shortItems = [];
-            let shortItemsMap = new Map();
-            let remainingDemand = [], remainingSupply = [];
-            let allSkus = new Set([...demandBySku.keys(), ...supplyBySku.keys()]);
-            
-            allSkus.forEach(sku => {
-                if(!sku) return;
-                const demand = demandBySku.get(sku), supply = supplyBySku.get(sku);
-                const dQty = demand ? demand.qty : 0, sQty = supply ? supply.qty : 0;
-                
-                if (dQty === sQty && dQty > 0) { 
-                    demand.rows.forEach(row => { 
-                        row.matchType = "Khớp Mã"; 
-                        exactItems.push({ ...row, orderQty: row.qty, deliveredQty: row.qty }); 
-                    }); 
-                }
-                else if (dQty > sQty) { 
-                    const existingShort = shortItemsMap.get(sku);
-                    if (!existingShort) {
-                        const shortItem = {
-                            category: demand.category,
-                            sku: demand.sku, // Lấy sku từ demand object
-                            name: demand.name,
-                            orderQty: dQty,
-                            deliveredQty: sQty || 0,
-                            matchType: "Thiếu (Mã)"
-                        };
-                        shortItemsMap.set(sku, shortItem);
-                        shortItems.push(shortItem);
-                    }
-
-                    if (dQty - sQty > 0) {
-                        remainingDemand.push({ sku: demand.sku, category: demand.category, name: demand.name, qty: dQty - sQty });
-                    }
-                }
-                else { 
-                    if (dQty > 0) {
-                        demand.rows.forEach(row => { 
-                            row.matchType = "Dư (Mã)";
-                            surplusItems.push({ ...row, orderQty: row.qty, deliveredQty: row.qty });
-                        });
-                    }
-                    if (supply && sQty > 0 && dQty === 0) {
-                        surplusItems.push({
-                            category: supply.category, sku: supply.sku, name: supply.name, 
-                            orderQty: 0, deliveredQty: sQty, matchType: "Dư mã ngoài Order"
-                        });
-                    }
-                    remainingSupply.push({ sku, category: supply.category, name: supply.name, qty: sQty - dQty }); 
-                }
-            });
-
-            // Lớp 2: So sánh theo Tên nếu chưa khớp
-            if (matchType === 'two_layer' || matchType === 'only_name') {
-                let pendingDemandByName = new Map(), pendingSupplyByName = new Map();
-                remainingDemand.forEach(d => { const key = d.name.trim(); if (!pendingDemandByName.has(key)) pendingDemandByName.set(key, { qty: 0, items: [] }); pendingDemandByName.get(key).qty += d.qty; pendingDemandByName.get(key).items.push(d); });
-                remainingSupply.forEach(s => { const key = s.name.trim(); if (!pendingSupplyByName.has(key)) pendingSupplyByName.set(key, { qty: 0, items: [] }); pendingSupplyByName.get(key).qty += s.qty; pendingSupplyByName.get(key).items.push(s); });
-                let allNames = new Set([...pendingDemandByName.keys(), ...pendingSupplyByName.keys()]);
-                allNames.forEach(name => {
-                    if(!name) return;
-                    const dQty = pendingDemandByName.has(name) ? pendingDemandByName.get(name).qty : 0;
-                    const sQty = pendingSupplyByName.has(name) ? pendingSupplyByName.get(name).qty : 0;
-                    const matchedQty = Math.min(dQty, sQty);
-
-                    if (matchedQty > 0) {
-                        let orderItems = pendingDemandByName.get(name).items;
-                        let matchedCount = matchedQty;
-                        for (let item of orderItems) {
-                            let take = Math.min(matchedCount, item.qty);
-                            exactItems.push({ category: item.category, sku: item.sku, name: name, orderQty: take, deliveredQty: take, matchType: "Khớp Tên" });
-                            matchedCount -= take; if(matchedCount === 0) break;
-                        }
-                        
-                        const origItem = orderItems[0];
-                        let existingShort = shortItemsMap.get(origItem.sku);
-                        if (existingShort) {
-                            existingShort.deliveredQty += matchedQty;
-                            existingShort.matchType = "Thiếu (Gộp Mã lẻ)";
-                        }
-                    }
-
-                    const remD = Math.max(0, dQty - sQty);
-                    const remS = Math.max(0, sQty - dQty);
-                    
-                    if(remD > 0) {
-                        // Nếu số remD > 0, dùng hàm merge để cập nhật nó, nhưng đừng thêm dòng mới
-                    }
-                    if(remS > 0) {
-                        surplusItems.push({ 
-                            category: pendingSupplyByName.get(name).items[0].category, 
-                            sku: pendingSupplyByName.get(name).items[0].sku, 
-                            name: name, 
-                            orderQty: 0, 
-                            deliveredQty: remS, 
-                            matchType: "Dư (Khớp Tên)" 
-                        });
-                    }
-                });
-            }
-
-            // === TÍNH DỮ LIỆU CHO BIỂU ĐỒ ===
-            let catMapForChart = new Map();
-            filteredOrders.forEach(r => {
-                let cat = r.category || "Khác";
-                if(!catMapForChart.has(cat)) catMapForChart.set(cat, {name: cat, order: 0, dc: 0, filled: 0, unfilled: 0});
-                let g = catMapForChart.get(cat); g.order += r.qty;
-            });
-            filteredDeliveries.forEach(r => {
-                let cat = r.category || "Khác";
-                if(catMapForChart.has(cat)) { let g = catMapForChart.get(cat); g.dc += r.qty; }
-            });
-            catMapForChart.forEach((val) => {
-                val.filled = Math.min(val.order, val.dc);
-                val.unfilled = Math.max(0, val.order - val.filled);
-            });
-            let groupedData = Array.from(catMapForChart.values());
-            let totalOrderQty = 0, totalDeliveredQty = 0;
-            groupedData.forEach(i => { totalOrderQty += i.order; totalDeliveredQty += i.dc; });
-
-            // === TÍNH KPI CHỈ CẦN GIAO > 0 LÀ TÍNH MÃ ĐÃ LẤY ===
-            let totalOrderSKUs = new Set(demandBySku.keys());
-            let filledSKUs = new Set();
-            
-            demandBySku.forEach((val, sku) => {
-                const trimmedSku = sku.trim();
-                if(!trimmedSku) return;
-                const supply = supplyBySku.get(trimmedSku);
-                const sQty = supply ? supply.qty : 0;
-                if(sQty > 0) filledSKUs.add(trimmedSku);
-            });
-
-            if (matchType === 'two_layer' || matchType === 'only_name') {
-                 exactItems.forEach(item => {
-                     const trimmedSku = item.sku.trim();
-                     if(trimmedSku && !filledSKUs.has(trimmedSku) && item.matchType === "Khớp Tên") {
-                         filledSKUs.add(trimmedSku);
-                     }
-                 });
-            }
-
-            const countFilledSKU = filledSKUs.size;
-            const countTotalSKU = totalOrderSKUs.size;
-            const countUnfilledSKU = countTotalSKU - countFilledSKU; 
-
-            const fillRateCode = countTotalSKU > 0 ? (countFilledSKU / countTotalSKU * 100) : 0;
-            const fillRateQty = totalOrderQty > 0 ? (totalDeliveredQty / totalOrderQty * 100) : 0;
-
-            // === ÁP DỤNG HÀM GỘP THEO TÊN SP VÀO CÁC BẢNG ===
-            const finalShortItems = mergeByProductName(shortItems);
-            const finalSurplusItems = mergeByProductName(surplusItems);
-
-            return {
-                kpi: {
-                    k1: {val: fillRateCode.toFixed(1) + '%', sub: `${countFilledSKU} / ${countTotalSKU} mã đã lấy`},
-                    k2: {val: fillRateQty.toFixed(1) + '%', sub: `${totalDeliveredQty.toLocaleString()} / ${totalOrderQty.toLocaleString()} đơn vị`},
-                    k3: {val: countUnfilledSKU.toLocaleString(), sub: `${countTotalSKU > 0 ? (countUnfilledSKU/countTotalSKU*100).toFixed(1) : 0}% số mã`},
-                    k4: {val: totalOrderQty.toLocaleString(), sub: `Đã giao ${totalDeliveredQty.toLocaleString()} đv`},
-                    k5: {val: exactItems.length, sub: `Đủ: ${exactItems.length}, Dư: ${finalSurplusItems.length}, Thiếu: ${finalShortItems.length}`},
-                    donut: { exact: exactItems.length, surplus: finalSurplusItems.length, short: finalShortItems.length, unfilled: finalShortItems.filter(i => i.orderQty > 0 && i.deliveredQty === 0).length }
-                },
-                details: { exactItems, surplusItems: finalSurplusItems, shortItems: finalShortItems },
-                chartData: groupedData
-            };
-        }
-
-        function renderDashboard(result) {
-            lastResult = result; 
-            const kpi = result.kpi; const details = result.details; const groupedData = result.chartData;
-            document.getElementById('kpi1_val').innerText = kpi.k1.val; document.getElementById('kpi1_sub').innerText = kpi.k1.sub;
-            document.getElementById('kpi2_val').innerText = kpi.k2.val; document.getElementById('kpi2_sub').innerText = kpi.k2.sub;
-            document.getElementById('kpi3_val').innerText = kpi.k3.val; document.getElementById('kpi3_sub').innerText = kpi.k3.sub;
-            document.getElementById('kpi4_val').innerText = kpi.k4.val; document.getElementById('kpi4_sub').innerText = kpi.k4.sub;
-            document.getElementById('kpi5_val').innerText = kpi.k5.val; document.getElementById('kpi5_sub').innerText = kpi.k5.sub;
-
-            const cats = groupedData.map(i => i.name);
-            chartBarStack.setOption({
-                tooltip: { trigger: 'axis' }, legend: { data: ['Đã lấy', 'Chưa lấy'], bottom: 0 },
-                grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
-                xAxis: { type: 'value' }, yAxis: { type: 'category', data: cats },
-                series: [
-                    { name: 'Đã lấy', type: 'bar', stack: 'total', barWidth: 15, itemStyle: { color: '#4CAF50' }, label: { show: true, position: 'inside' }, data: groupedData.map(i => i.filled) },
-                    { name: 'Chưa lấy', type: 'bar', stack: 'total', itemStyle: { color: '#D32F2F' }, label: { show: true, position: 'inside' }, data: groupedData.map(i => i.unfilled) }
-                ]
-            }, true);
-
-            chartDonut.setOption({
-                tooltip: { trigger: 'item' }, 
-                legend: { bottom: '0%', left: 'center', orient: 'horizontal', icon: 'circle' }, 
-                series: [{ type: 'pie', radius: ['40%', '70%'], data: [
-                    { value: kpi.donut.exact, name: 'Giao đúng', itemStyle: { color: '#4CAF50' } },
-                    { value: kpi.donut.surplus, name: 'Giao dư', itemStyle: { color: '#1976D2' } },
-                    { value: kpi.donut.short, name: 'Giao thiếu', itemStyle: { color: '#FBC02D' } },
-                    { value: kpi.donut.unfilled, name: 'Chưa giao', itemStyle: { color: '#D32F2F' } }
-                ]}]
-            }, true);
-
-            chartGroupedBar.setOption({
-                tooltip: { trigger: 'axis' }, legend: { data: ['Order', 'Đã giao'], bottom: 0 },
-                grid: { left: '3%', right: '4%', bottom: '20%', containLabel: true },
-                xAxis: { type: 'category', data: cats, axisLabel: { interval: 0, rotate: 15 } },
-                yAxis: { type: 'value' },
-                series: [
-                    { name: 'Order', type: 'bar', barWidth: 20, itemStyle: { color: '#1976D2' }, label: { show: true, position: 'top' }, data: groupedData.map(i => i.order) },
-                    { name: 'Đã giao', type: 'bar', barWidth: 20, itemStyle: { color: '#4CAF50' }, label: { show: true, position: 'top' }, data: groupedData.map(i => i.dc) }
-                ]
-            }, true);
-
-            renderDetailTable('tab-ok', details.exactItems, 'Giao đúng');
-            renderDetailTable('tab-surplus', details.surplusItems, 'Giao dư');
-            renderDetailTable('tab-short', details.shortItems, 'Giao thiếu');
-        }
-
-        function renderDetailTable(containerId, items, status) {
-            const container = document.getElementById(containerId);
-            if(!items || items.length === 0) { container.innerHTML = `<div class="empty-msg">Không có SP nào trạng thái: ${status}</div>`; return; }
-            let html = `<table><thead><tr><th>Nhóm hàng</th><th>Mã SP</th><th>Tên SP</th><th>Trạng thái</th><th>SL Order</th><th>SL Giao</th><th>Chênh lệch</th></tr></thead><tbody>`;
-            items.forEach(item => {
-                const delivered = item.deliveredQty || 0;
-                const order = item.orderQty || 0;
-                const diff = delivered - order;
-                html += `<tr><td>${item.category}</td><td style="font-weight:500;">${item.sku || '(Trống)'}</td><td style="font-weight:bold;">${item.name}</td>
-                <td><span style="background:#eef; padding:2px 6px; border-radius:10px; font-size:11px;">${item.matchType || status}</span></td>
-                <td>${order}</td><td>${delivered}</td>
-                <td style="color: ${diff > 0 ? '#1976D2' : (diff < 0 ? '#D32F2F' : '#333')}; font-weight: bold;">${diff}</td></tr>`;
-            });
-            html += `</tbody></table>`;
-            container.innerHTML = html;
-        }
-
-        function updateDashboard() {
-            const filterType = document.getElementById('timeFilter').value;
-            const matchType = document.getElementById('matchType').value;
-            const filteredOrders = filterArrayByTime(rawOrders, filterType);
-            const filteredDeliveries = filterArrayByTime(rawDeliveries, filterType);
-            if (filteredOrders.length === 0 && filteredDeliveries.length === 0) {
-                alert(`Không tìm thấy dữ liệu cho mốc thời gian này.`);
-                return;
-            }
-            const result = processTwoLayerLogic(filteredOrders, filteredDeliveries, matchType);
-            renderDashboard(result);
-            document.getElementById('currentTime').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
-        }
-
-        document.getElementById('fileInput').addEventListener('change', function(e) {
-            const files = e.target.files;
-            if (!files || files.length === 0) return;
-
-            const filePromises = Array.from(files).map((file) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        try {
-                            const data = new Uint8Array(e.target.result);
-                            const workbook = XLSX.read(data, { type: 'array' });
-                            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                            const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                            
-                            if (rows.length < 2) { reject(new Error(`File "${file.name}" không có dữ liệu.`)); return; }
-
-                            let orderItems = [], deliveryItems = [];
-                            for (let i = 1; i < rows.length; i++) {
-                                const row = rows[i];
-                                if (!row || row.length === 0) continue;
-
-                                let date = null;
-                                if (row[8]) {
-                                    const dateVal = String(row[8]);
-                                    if (dateVal) {
-                                        const parts = dateVal.split('/');
-                                        if (parts.length === 3) date = new Date(parts[2], parts[1] - 1, parts[0]);
-                                    }
-                                }
-                                
-                                const oQty = parseInt(String(row[3] || "0").replace(/[^0-9]/g, '')) || 0;
-                                if (oQty > 0) {
-                                    orderItems.push({
-                                        category: String(row[0] || "Khác").trim(), sku: String(row[1] || "").trim(), name: String(row[2] || "").trim(), qty: oQty, date: date
-                                    });
-                                }
-
-                                const dQty = parseInt(String(row[7] || "0").replace(/[^0-9]/g, '')) || 0;
-                                if (dQty > 0) {
-                                    deliveryItems.push({
-                                        category: String(row[4] || "Khác").trim(), sku: String(row[5] || "").trim(), name: String(row[6] || "").trim(), qty: dQty, date: date
-                                    });
-                                }
-                            }
-
-                            if (orderItems.length === 0 && deliveryItems.length === 0) {
-                                reject(new Error(`File "${file.name}" không có đơn hàng/giao hàng nào hợp lệ.`));
-                                return;
-                            }
-                            resolve({ orders: orderItems, deliveries: deliveryItems, fileName: file.name });
-                        } catch (err) {
-                            reject(new Error(`Lỗi đọc file "${file.name}": ${err.message}`));
-                        }
-                    };
-                    reader.readAsArrayBuffer(file);
-                });
-            });
-
-            Promise.all(filePromises)
-                .then(results => {
-                    rawOrders = []; rawDeliveries = [];
-                    results.forEach(res => {
-                        rawOrders = rawOrders.concat(res.orders);
-                        rawDeliveries = rawDeliveries.concat(res.deliveries);
-                    });
-                    updateDashboard();
-                })
-                .catch(err => {
-                    alert(`🚫 LỖI XỬ LÝ FILE!\nChi tiết: ${err.message}`);
-                });
-        });
-
-        document.getElementById('timeFilter').addEventListener('change', function() { if(rawOrders.length > 0) updateDashboard(); });
-        document.getElementById('matchType').addEventListener('change', function() { if(rawOrders.length > 0) updateDashboard(); });
-
-        // === HÀM XUẤT EXCEL MỚI (ĐƠN GIẢN, CHỈ CÓ 3 SHEET, KHÔNG CÓ ẢNH) ===
-async function exportReportToExcel() {
-    if (!lastResult) { 
-        alert("Vui lòng tải dữ liệu và chạy báo cáo trước khi xuất file!");
-        return; 
-    }
+// ================= XỬ LÝ UPLOAD FILE EXCEL =================
+document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
     try {
-        const details = lastResult.details;
-        const wb = new ExcelJS.Workbook();
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (rows.length < 2) { alert("File không có dữ liệu."); return; }
 
-        // Hàm phụ trợ để tạo 1 sheet dữ liệu
-        const createSheet = (sheetName, data) => {
-            const sheet = wb.addWorksheet(sheetName);
-            
-            // Tạo dòng Header
-            const headers = ['Nhóm hàng', 'Mã SP', 'Tên SP', 'SL Order', 'SL Giao', 'Chênh lệch'];
-            const headerRow = sheet.addRow(headers);
-            headerRow.font = { bold: true };
-            
-            // Nếu có dữ liệu thì ghi vào, nếu không thì ghi thông báo
-            if (data && data.length > 0) {
-                data.forEach(item => {
-                    const delivered = item.deliveredQty || 0;
-                    const order = item.orderQty || 0;
-                    const diff = delivered - order;
-                    sheet.addRow([item.category, item.sku || '', item.name, order, delivered, diff]);
-                });
-            } else {
-                sheet.addRow(['Không có dữ liệu']);
-            }
-            
-            // Tự động co giãn độ rộng cột cho dễ nhìn
-            sheet.columns = [
-                { width: 20 }, // Nhóm hàng
-                { width: 22 }, // Mã SP
-                { width: 30 }, // Tên SP
-                { width: 15 }, // SL Order
-                { width: 15 }, // SL Giao
-                { width: 15 }  // Chênh lệch
-            ];
+      let orders = [], deliveries = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+
+        const order = {
+          group: String(row[0] || "Khác").trim(),
+          code: String(row[1] || "").trim(),
+          name: String(row[2] || "").trim(),
+          qty: parseInt(String(row[3] || "0").replace(/[^0-9]/g, '')) || 0,
+          date: row[8] ? new Date(row[8]) : null
         };
-
-        // Tạo 3 sheet: Giao đúng, Giao dư, Giao thiếu
-        createSheet('Giao đúng', details.exactItems);
-        createSheet('Giao dư', details.surplusItems);
-        createSheet('Giao thiếu', details.shortItems);
-
-        // Xuất file xuống máy
-        const buffer = await wb.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        saveAs(blob, `Bao_cao_chi_tiet_${new Date().toISOString().split('T')[0]}.xlsx`);
-
-    } catch (error) {
-        console.error(error);
-        alert("Có lỗi xảy ra khi xuất file Excel: " + error.message);
+        const delivery = {
+          group: String(row[4] || "Khác").trim(),
+          code: String(row[5] || "").trim(),
+          name: String(row[6] || "").trim(),
+          qty: parseInt(String(row[7] || "0").replace(/[^0-9]/g, '')) || 0,
+          date: row[8] ? new Date(row[8]) : null
+        };
+        if (order.qty > 0) orders.push(order);
+        if (delivery.qty > 0) deliveries.push(delivery);
+      }
+      if (orders.length === 0 && deliveries.length === 0) { alert("Không tìm thấy dữ liệu hợp lệ."); return; }
+      
+      processLogic(orders, deliveries);
+      document.getElementById('src').innerHTML = `Đã xử lý <b>${orders.length}</b> dòng Order & <b>${deliveries.length}</b> dòng Giao`;
+      document.getElementById('upd').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
+    } catch(err) {
+      alert("Lỗi đọc file: " + err.message);
     }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ================= LOGIC SO SÁNH & TÍNH KPI CHUẨN (Chỉ cần Giao > 0 = Đã lấy) =================
+function processLogic(orders, deliveries) {
+  const orderMap = new Map();
+  const deliveryMap = new Map();
+
+  orders.forEach(o => {
+    const key = o.code || o.name;
+    if (!orderMap.has(key)) orderMap.set(key, { group: o.group, name: o.name, qty: 0, items: [] });
+    const item = orderMap.get(key); item.qty += o.qty; item.items.push(o);
+  });
+
+  deliveries.forEach(d => {
+    const key = d.code || d.name;
+    if (!deliveryMap.has(key)) deliveryMap.set(key, { group: d.group, name: d.name, qty: 0, items: [] });
+    const item = deliveryMap.get(key); item.qty += d.qty; item.items.push(d);
+  });
+
+  let exactItems = [], surplusItems = [], shortItems = [], allItems = [];
+  const totalOrderSKUs = new Set(orderMap.keys());
+  const filledSKUs = new Set(); // Set để đếm số mã đã được giao (dù số lượng ít)
+
+  const allKeys = new Set([...orderMap.keys(), ...deliveryMap.keys()]);
+  allKeys.forEach(key => {
+    const d = orderMap.get(key);
+    const s = deliveryMap.get(key);
+    const dQty = d ? d.qty : 0;
+    const sQty = s ? s.qty : 0;
+
+    // FIX KPI: Chỉ cần sQty > 0 (đã giao hàng) là tính mã đó là "Đã lấy"
+    if (sQty > 0 && d) {
+        filledSKUs.add(key);
+    }
+
+    if (d && !s) {
+      d.items.forEach(item => { shortItems.push({ ...item, type: 'Chưa lấy', chuyen: 0, chenh: -item.qty }); allItems.push({ ...item, type: 'Chưa lấy', chuyen: 0, chenh: -item.qty }); });
+    } else if (!d && s) {
+      s.items.forEach(item => { surplusItems.push({ ...item, order: 0, chuyen: item.qty, chenh: item.qty, type: 'Lấy dư' }); allItems.push({ ...item, order: 0, chuyen: item.qty, chenh: item.qty, type: 'Lấy dư' }); });
+    } else if (d && s) {
+      if (dQty === sQty) {
+        d.items.forEach(item => { exactItems.push({ ...item, chuyen: item.qty, chenh: 0, type: 'Lấy đủ' }); allItems.push({ ...item, chuyen: item.qty, chenh: 0, type: 'Lấy đủ' }); });
+      } else if (dQty > sQty) {
+        d.items.forEach(item => { shortItems.push({ ...item, chuyen: Math.min(item.qty, sQty), chenh: -(item.qty - Math.min(item.qty, sQty)), type: 'Lấy thiếu' }); allItems.push({ ...item, chuyen: Math.min(item.qty, sQty), chenh: -(item.qty - Math.min(item.qty, sQty)), type: 'Lấy thiếu' }); });
+      } else {
+        s.items.forEach(item => { surplusItems.push({ ...item, order: dQty, chuyen: item.qty, chenh: item.qty - dQty, type: 'Lấy dư' }); allItems.push({ ...item, order: dQty, chuyen: item.qty, chenh: item.qty - dQty, type: 'Lấy dư' }); });
+      }
+    }
+  });
+
+  // Tính KPI chuẩn dựa trên filledSKUs (Số mã đã giao > 0)
+  const totalOrderQty = orders.reduce((s,i) => s + i.qty, 0);
+  const totalDeliveredQty = deliveries.reduce((s,i) => s + i.qty, 0);
+
+  const kpiData = {
+    fill_ma: totalOrderSKUs.size > 0 ? (filledSKUs.size / totalOrderSKUs.size * 100) : 0,
+    p_total: totalOrderSKUs.size,
+    p_dalay: filledSKUs.size,
+    p_chua: totalOrderSKUs.size - filledSKUs.size,
+    tot_order: totalOrderQty,
+    tot_chuyen: totalDeliveredQty,
+    n_da_lay: exactItems.filter(i => i.type !== 'Chưa lấy').length,
+    n_du: surplusItems.length,
+    n_thieu: shortItems.length,
+    n_dung: exactItems.length,
+    n_ma: totalOrderSKUs.size
+  };
+
+  const catMap = new Map();
+  orders.forEach(o => {
+    const g = o.group || "Khác";
+    if (!catMap.has(g)) catMap.set(g, { name: g, order: 0, chuyen: 0, filled: 0, unfilled: 0 });
+    const c = catMap.get(g); c.order += o.qty;
+  });
+  deliveries.forEach(d => {
+    const g = d.group || "Khác";
+    if (catMap.has(g)) { const c = catMap.get(g); c.chuyen += d.qty; }
+  });
+  allItems.forEach(i => {
+    if (catMap.has(i.group)) { const c = catMap.get(i.group); c.filled += Math.min(i.qty || 0, i.chuyen || 0); }
+  });
+  catMap.forEach((val) => { val.unfilled = Math.max(0, val.order - val.filled); });
+
+  DATA = { kpi: kpiData, nganh: Array.from(catMap.values()), chua_lay: shortItems.filter(i => i.type === 'Chưa lấy'), sai_lech: [...shortItems, ...surplusItems].filter(i => i.chenh !== 0), items: allItems };
+  renderDashboard();
 }
 
-        window.onload = function() {
-            chartBarStack = echarts.init(document.getElementById('chartBarStack'));
-            chartDonut = echarts.init(document.getElementById('chartDonut'));
-            chartGroupedBar = echarts.init(document.getElementById('chartGroupedBar'));
-            window.addEventListener('resize', () => { chartBarStack.resize(); chartDonut.resize(); chartGroupedBar.resize(); });
-            document.getElementById('currentTime').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
-        };
-    </script>
+// ================= RENDER UI =================
+function renderDashboard() {
+  if (!DATA) return;
+  const k = DATA.kpi;
+  const C = { red: '#dc2626', yellow: '#d97706', green: '#16a34a', blue: '#2563eb' };
+  const frVar = v => v < 50 ? 'var(--red)' : (v < 80 ? 'var(--yellow)' : 'var(--green)');
+
+  document.getElementById('cards').innerHTML = [
+    { lbl: 'Fill Rate tổng (theo mã)', val: k.fill_ma.toFixed(1) + '%', sub: k.p_dalay + ' / ' + k.p_total + ' mã đã lấy', color: frVar(k.fill_ma) },
+    { lbl: 'Fill rate theo sản lượng', val: (k.tot_order > 0 ? (k.tot_chuyen / k.tot_order * 100).toFixed(1) : 0) + '%', sub: nf(k.tot_chuyen) + ' / ' + nf(k.tot_order) + ' đơn vị', color: frVar(k.tot_order > 0 ? (k.tot_chuyen / k.tot_order * 100) : 0) },
+    { lbl: 'Mã chưa lấy', val: nf(k.p_chua), sub: (k.p_total > 0 ? (k.p_chua / k.p_total * 100).toFixed(1) : 0) + '% số mã', color: 'var(--red)' },
+    { lbl: 'Tổng SL order', val: nf(k.tot_order), sub: 'DC chuyển ' + nf(k.tot_chuyen) + ' đv' },
+    { lbl: 'Mã đã lấy — độ chính xác', val: nf(k.n_da_lay), sub: 'Đủ ' + k.n_dung + ' · Dư ' + k.n_du + ' · Thiếu ' + k.n_thieu },
+  ].map(c => `<div class="card"><div class="lbl">${c.lbl}</div><div class="val" style="color:${c.color||'var(--txt)'}">${c.val}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  document.getElementById('donutTitle').innerHTML = `Cơ cấu ${k.n_ma} mã hàng`;
+
+  // Chart.js rendering handlers
+  if (!charts.nganh) {
+    charts.nganh = new Chart(document.getElementById('chNganh'), { type: 'bar', data: { labels: DATA.nganh.map(g=>g.name), datasets: [{label:'Đã lấy', data: DATA.nganh.map(g=>g.filled), backgroundColor:C.green, stack:'s'},{label:'Chưa lấy', data: DATA.nganh.map(g=>g.unfilled), backgroundColor:C.red, stack:'s'}] }, options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}}, scales:{x:{stacked:true, grid:{color:'#e2e8f0'}}, y:{stacked:true, grid:{display:false}}} } });
+  } else { charts.nganh.data.labels = DATA.nganh.map(g=>g.name); charts.nganh.data.datasets[0].data = DATA.nganh.map(g=>g.filled); charts.nganh.data.datasets[1].data = DATA.nganh.map(g=>g.unfilled); charts.nganh.update(); }
+
+  if (!charts.status) {
+    charts.status = new Chart(document.getElementById('chStatus'), { type:'doughnut', data:{ labels:['Chưa lấy','Lấy đủ','Lấy dư','Lấy thiếu'], datasets:[{ data:[k.p_chua,k.n_dung,k.n_du,k.n_thieu], backgroundColor:[C.red,C.green,C.blue,C.yellow], borderColor:'#fff', borderWidth:2 }]}, options:{ responsive:true, maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{ position:'right' } } } });
+  } else { charts.status.data.datasets[0].data = [k.p_chua,k.n_dung,k.n_du,k.n_thieu]; charts.status.update(); }
+
+  if (!charts.vol) {
+    charts.vol = new Chart(document.getElementById('chVol'), { type:'bar', data:{ labels:DATA.nganh.map(g=>g.name), datasets:[{label:'Order', data:DATA.nganh.map(g=>g.order), backgroundColor:C.blue, borderRadius:4},{label:'DC chuyển', data:DATA.nganh.map(g=>g.chuyen), backgroundColor:C.green, borderRadius:4}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'top'} }, scales:{ x:{ grid:{display:false}}, y:{ grid:{color:'#e2e8f0'}} } } });
+  } else { charts.vol.data.labels = DATA.nganh.map(g=>g.name); charts.vol.data.datasets[0].data = DATA.nganh.map(g=>g.order); charts.vol.data.datasets[1].data = DATA.nganh.map(g=>g.chuyen); charts.vol.update(); }
+
+  // Update Tables
+  const chua = DATA.chua_lay;
+  document.getElementById('chuaCount').textContent = chua.length + ' mã';
+  document.querySelector('#chuaTbl tbody').innerHTML = chua.map(d=>`<tr><td>${d.group}</td><td>${d.name}</td><td class="num">${nf(d.qty)}</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--mut);text-align:center">Không có dữ liệu</td></tr>';
+  document.getElementById('chuaSum').innerHTML = `<div>Hiển thị <b>${chua.length}</b> mã</div><div>Tổng SL: <b>${nf(chua.reduce((s,d)=>s+d.qty,0))}</b></div>`;
+
+  const sai = DATA.sai_lech;
+  document.querySelector('#slTbl tbody').innerHTML = sai.map(d=>`<tr><td>${d.name}</td><td class="num">${nf(d.qty||0)}</td><td class="num">${nf(d.chuyen||0)}</td><td class="num"><span class="pill" style="background:${d.chenh>0?'var(--blue)':'var(--yellow)'};color:#fff">${d.chenh>0?'+':''}${nf(d.chenh)}</span></td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--mut);text-align:center">Không có dữ liệu</td></tr>';
+  document.getElementById('slSum').innerHTML = `<div>Hiển thị <b>${sai.length}</b> mã</div>`;
+
+  // Tree View
+  const treeData = {};
+  DATA.items.forEach(i => { if(!treeData[i.group]) treeData[i.group] = []; treeData[i.group].push(i); });
+  document.getElementById('tree').innerHTML = Object.keys(treeData).map(grp => {
+    const items = treeData[grp];
+    return `<div class="tnode"><div class="trow"><span class="tw">▶</span><span class="tname">${grp}</span><span class="tcount">${items.length} mã</span></div><div class="tchild">${items.map(i => `
+      <div class="tleaf"><span>${i.name}</span><span class="r">${nf(i.qty||0)}</span><span class="r">${nf(i.chuyen||0)}</span><span class="r" style="color:${i.chenh<0?'var(--yellow)':(i.chenh>0?'var(--blue)':'var(--mut)')}">${i.chenh>0?'+':''}${nf(i.chenh)}</span><span class="st" style="background:${i.type==='Chưa lấy'?'var(--red)':(i.type==='Lấy dư'?'var(--blue)':(i.type==='Lấy thiếu'?'var(--yellow)':'var(--green)'))}">${i.type}</span></div>
+    `).join('')}</div></div>`;
+  }).join('') || '<div style="padding:20px;color:var(--mut);text-align:center">Không có dữ liệu</div>';
+  
+  document.querySelectorAll('.trow').forEach(row => { row.onclick = () => { const child = row.nextElementSibling; const w = row.querySelector('.tw'); const op = child.classList.toggle('open'); w.classList.toggle('open', op); }; });
+}
+
+document.getElementById('expandAll').onclick = ()=>{
+  document.querySelectorAll('.tchild').forEach(c=>c.classList.add('open'));
+  document.querySelectorAll('.tw').forEach(w=>w.classList.add('open'));
+};
+document.getElementById('collapseAll').onclick = ()=>{
+  document.querySelectorAll('.tchild').forEach(c=>c.classList.remove('open'));
+  document.querySelectorAll('.tw').forEach(w=>w.classList.remove('open'));
+};
+
+// ================= EXPORT EXCEL =================
+const stamp = () => { const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}${p(d.getMonth()+1)}${d.getFullYear()}_${p(d.getHours())}${p(d.getMinutes())}`; };
+function download(wb,name){ XLSX.writeFile(wb,name); }
+document.getElementById('expChua').onclick = () => { if(!DATA) return alert("Upload file trước."); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Ngành','Tên hàng','SL Order']].concat(DATA.chua_lay.map(d=>[d.group,d.name,d.qty]))), 'Chua lay'); download(wb, `ChuaLay_${stamp()}.xlsx`); };
+document.getElementById('expAll').onclick = () => { if(!DATA) return alert("Upload file trước."); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Ngành','Tên hàng','SL Order','SL Giao','Chênh lệch','Trạng thái']].concat(DATA.items.map(d=>[d.group,d.name,d.qty||0,d.chuyen||0,d.chenh,d.type]))), 'Tat ca ma'); download(wb, `FullReport_${stamp()}.xlsx`); };
+
+window.onload = function() { document.getElementById('upd').innerText = 'Chờ tải file...'; };
+</script>
 </body>
 </html>
