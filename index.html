@@ -212,139 +212,112 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
     }
 });
 
-// ================= LOGIC ĐƠN GIẢN: CHÊNH LỆCH = 0 -> ĐỦ, >0 -> DƯ, <0 -> THIẾU =================
-// ================= FIX LOGIC: ƯU TIÊN GỘP THEO MÃ SP (CÙNG MÃ DÙ KHÁC TÊN VẪN CỘNG) =================
-// ================= FIX LOGIC: GỘP 2 LỚP (ƯU TIÊN MÃ SP, NẾU MÃ KHÁC THÌ GỘP THEO TÊN) =================
-// ================= FIX LOGIC CUỐI: GỘP THEO TÊN CHUẨN HÓA (GỘP CẢ MÃ GIỐNG LẪN MÃ LỆCH) =================
-// ================= LOGIC GỘP "LIÊN THÔNG": TRÙNG MÃ HOẶC TRÙNG TÊN ĐỀU GỘP =================
+// ================= FIX LOGIC: ĐỐI CHIẾU TẬP HỢP ĐỘC LẬP (ĐÚNG VỚI DỮ LIỆU 2 DANH SÁCH) =================
 function processLogic(orders, deliveries) {
   const normalizeName = (str) => (str || "").replace(/\s+/g, ' ').trim();
 
-  // Bước 1: Gom dữ liệu thô theo Mã và theo Tên
-  const orderBySku = new Map();
-  const orderByName = new Map();
+  // Gom Order vào Map 1
+  const orderMap = new Map(); // Key là Mã SP (nếu trống thì lấy Tên)
   orders.forEach(o => {
-    const sku = o.code.trim();
-    const name = normalizeName(o.name);
-    
-    if (!orderBySku.has(sku)) orderBySku.set(sku, { group: o.group, name: o.name, sku: sku, qty: 0 });
-    orderBySku.get(sku).qty += o.qty;
-    
-    if (!orderByName.has(name)) orderByName.set(name, { group: o.group, name: o.name, sku: sku, qty: 0 });
-    orderByName.get(name).qty += o.qty;
+    const key = o.code.trim() !== "" ? o.code.trim() : normalizeName(o.name);
+    if (!orderMap.has(key)) orderMap.set(key, { group: o.group, name: o.name, sku: o.code, qty: 0, items: [] });
+    const item = orderMap.get(key);
+    item.qty += o.qty;
+    if (!item.sku) item.sku = o.code;
+    if (!item.name) item.name = o.name;
+    item.items.push(o);
   });
 
-  const deliveryBySku = new Map();
-  const deliveryByName = new Map();
+  // Gom Giao vào Map 2 (Độc lập với Map 1)
+  const deliveryMap = new Map(); // Key là Mã SP (nếu trống thì lấy Tên)
   deliveries.forEach(d => {
-    const sku = d.code.trim();
-    const name = normalizeName(d.name);
-    
-    if (!deliveryBySku.has(sku)) deliveryBySku.set(sku, { group: d.group, name: d.name, sku: sku, qty: 0 });
-    deliveryBySku.get(sku).qty += d.qty;
-    
-    if (!deliveryByName.has(name)) deliveryByName.set(name, { group: d.group, name: d.name, sku: sku, qty: 0 });
-    deliveryByName.get(name).qty += d.qty;
+    const key = d.code.trim() !== "" ? d.code.trim() : normalizeName(d.name);
+    if (!deliveryMap.has(key)) deliveryMap.set(key, { group: d.group, name: d.name, sku: d.code, qty: 0, items: [] });
+    const item = deliveryMap.get(key);
+    item.qty += d.qty;
+    if (!item.sku) item.sku = d.code;
+    if (!item.name) item.name = d.name;
+    item.items.push(d);
   });
 
-  // Bước 2: Xây dựng quan hệ "liên thông" giữa Mã và Tên
-  const parent = new Map();
-  const find = (x) => {
-    if (!parent.has(x)) parent.set(x, x);
-    if (parent.get(x) !== x) parent.set(x, find(parent.get(x)));
-    return parent.get(x);
-  };
-  const union = (a, b) => {
-    const rootA = find(a);
-    const rootB = find(b);
-    if (rootA !== rootB) parent.set(rootA, rootB);
-  };
-
-  // Kết nối Mã <-> Tên trong Order
-  orderBySku.forEach((val, sku) => {
-    union("SKU_" + sku, "NAME_" + normalizeName(val.name));
-  });
-  // Kết nối Mã <-> Tên trong Delivery
-  deliveryBySku.forEach((val, sku) => {
-    union("SKU_" + sku, "NAME_" + normalizeName(val.name));
-  });
-
-  // Bước 3: Gom tất cả các dòng Order dựa trên "Đại diện" (Root)
-  const orderFinal = new Map();
-  orderBySku.forEach((val, sku) => {
-    const root = find("SKU_" + sku);
-    if (!orderFinal.has(root)) orderFinal.set(root, { group: val.group, name: val.name, sku: val.sku, qty: 0 });
-    const item = orderFinal.get(root);
-    item.qty += val.qty;
-    if (!item.sku) item.sku = val.sku;
-    if (!item.name || item.name.length < val.name.length) item.name = val.name;
-  });
-
-  // Gom tất cả các dòng Delivery dựa trên "Đại diện" (Root)
-  const deliveryFinal = new Map();
-  deliveryBySku.forEach((val, sku) => {
-    const root = find("SKU_" + sku);
-    if (!deliveryFinal.has(root)) deliveryFinal.set(root, { group: val.group, name: val.name, sku: val.sku, qty: 0 });
-    const item = deliveryFinal.get(root);
-    item.qty += val.qty;
-    if (!item.sku) item.sku = val.sku;
-    if (!item.name || item.name.length < val.name.length) item.name = val.name;
-  });
-
-  // Bước 4: So sánh và phân loại
+  // Thực hiện đối chiếu: Đếm số Mã Order có tồn tại trong Giao
   let exactItems = [], surplusItems = [], shortItems = [], allItems = [];
-  const filledNames = new Set(); 
   
-  const allRoots = new Set([...orderFinal.keys(), ...deliveryFinal.keys()]);
-  allRoots.forEach(root => {
-    const d = orderFinal.get(root);
-    const s = deliveryFinal.get(root);
-    const dQty = d ? d.qty : 0;
-    const sQty = s ? s.qty : 0;
+  const totalOrderSKUs = orderMap.size;
+  let filledSKUs = 0;
 
-    if (sQty > 0 && d) {
-        filledNames.add(root);
-    }
+  // Duyệt qua tất cả Order
+  orderMap.forEach((orderItem, key) => {
+    const deliveryItem = deliveryMap.get(key);
+    const dQty = orderItem.qty;
+    const sQty = deliveryItem ? deliveryItem.qty : 0;
 
+    // Tạo bản ghi tổng hợp
     const combinedItem = { 
-      group: d ? d.group : (s ? s.group : "Khác"),
-      code: d ? d.sku : (s ? s.sku : ""),
-      name: (d ? d.name : (s ? s.name : "Không rõ")),
-      qty: dQty || 0, 
-      chuyen: sQty || 0, 
+      group: orderItem.group, 
+      code: orderItem.sku, 
+      name: orderItem.name, 
+      qty: dQty, 
+      chuyen: sQty, 
       chenh: sQty - dQty 
     };
 
-    if (combinedItem.chenh === 0) {
-      combinedItem.type = 'Lấy đủ';
-      exactItems.push(combinedItem);
-    } else if (combinedItem.chenh > 0) {
-      combinedItem.type = 'Lấy dư';
-      surplusItems.push(combinedItem);
+    // Phân loại
+    if (sQty > 0) {
+      filledSKUs++; // Đã lấy (kể cả giao dư, giao thiếu)
+      if (dQty === sQty) {
+        combinedItem.type = 'Lấy đủ';
+        exactItems.push(combinedItem);
+      } else if (dQty > sQty) {
+        combinedItem.type = 'Lấy thiếu';
+        shortItems.push(combinedItem);
+      } else {
+        combinedItem.type = 'Lấy dư';
+        surplusItems.push(combinedItem);
+      }
     } else {
-      combinedItem.type = 'Lấy thiếu';
+      combinedItem.type = 'Chưa lấy';
       shortItems.push(combinedItem);
     }
     allItems.push(combinedItem);
   });
 
+  // Xử lý các mã Giao nằm ngoài Order (Giao dư tuyệt đối)
+  deliveryMap.forEach((deliveryItem, key) => {
+    if (!orderMap.has(key)) {
+      const combinedItem = { 
+        group: deliveryItem.group, 
+        code: deliveryItem.sku, 
+        name: deliveryItem.name, 
+        qty: 0, 
+        chuyen: deliveryItem.qty, 
+        chenh: deliveryItem.qty, 
+        type: 'Giao dư ngoài Order' 
+      };
+      surplusItems.push(combinedItem);
+      allItems.push(combinedItem);
+    }
+  });
+
+  // Tính KPI theo đúng bản chất: Fill Rate = (Số mã Order có trong Giao) / (Tổng mã Order)
   const totalOrderQty = orders.reduce((s,i) => s + i.qty, 0);
   const totalDeliveredQty = deliveries.reduce((s,i) => s + i.qty, 0);
 
   const kpiData = {
-    fill_ma: allRoots.size > 0 ? (filledNames.size / allRoots.size * 100) : 0,
-    p_total: allRoots.size,
-    p_dalay: filledNames.size,
-    p_chua: allRoots.size - filledNames.size,
+    fill_ma: totalOrderSKUs > 0 ? (filledSKUs / totalOrderSKUs * 100) : 0,
+    p_total: totalOrderSKUs,
+    p_dalay: filledSKUs,
+    p_chua: totalOrderSKUs - filledSKUs,
     tot_order: totalOrderQty,
     tot_chuyen: totalDeliveredQty,
-    n_da_lay: exactItems.length,
+    n_da_lay: exactItems.filter(i => i.type !== 'Chưa lấy').length,
     n_du: surplusItems.length,
     n_thieu: shortItems.length,
     n_dung: exactItems.length,
-    n_ma: allRoots.size
+    n_ma: totalOrderSKUs
   };
 
+  // Gom nhóm theo Ngành để vẽ Chart
   const catMap = new Map();
   orders.forEach(o => {
     const g = o.group || "Khác";
@@ -360,7 +333,7 @@ function processLogic(orders, deliveries) {
   });
   catMap.forEach((val) => { val.unfilled = Math.max(0, val.order - val.filled); });
 
-  DATA = { kpi: kpiData, nganh: Array.from(catMap.values()), chua_lay: shortItems.filter(i => i.type === 'Lấy thiếu' && i.chuyen === 0), sai_lech: [...shortItems, ...surplusItems], items: allItems };
+  DATA = { kpi: kpiData, nganh: Array.from(catMap.values()), chua_lay: shortItems.filter(i => i.type === 'Chưa lấy'), sai_lech: [...shortItems, ...surplusItems], items: allItems };
   renderDashboard();
 }
 
