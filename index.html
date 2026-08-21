@@ -213,13 +213,16 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
 });
 
 // ================= LOGIC ĐƠN GIẢN: CHÊNH LỆCH = 0 -> ĐỦ, >0 -> DƯ, <0 -> THIẾU =================
+// ================= FIX LOGIC: ƯU TIÊN GỘP THEO MÃ SP (CÙNG MÃ DÙ KHÁC TÊN VẪN CỘNG) =================
 function processLogic(orders, deliveries) {
   const normalizeName = (str) => str.replace(/\s+/g, ' ').trim();
+
+  // Gom theo Mã SP (Cột B và F) - Nếu Mã giống nhau thì cộng vào nhau
   const orderMap = new Map();
   const deliveryMap = new Map();
 
   orders.forEach(o => {
-    const key = normalizeName(o.name);
+    const key = o.code.trim(); // Dùng Mã SP làm key
     if (!orderMap.has(key)) orderMap.set(key, { group: o.group, name: o.name, sku: o.code, qty: 0, items: [] });
     const item = orderMap.get(key);
     item.qty += o.qty;
@@ -228,7 +231,7 @@ function processLogic(orders, deliveries) {
   });
 
   deliveries.forEach(d => {
-    const key = normalizeName(d.name);
+    const key = d.code.trim(); // Dùng Mã SP làm key
     if (!deliveryMap.has(key)) deliveryMap.set(key, { group: d.group, name: d.name, sku: d.code, qty: 0, items: [] });
     const item = deliveryMap.get(key);
     item.qty += d.qty;
@@ -251,10 +254,11 @@ function processLogic(orders, deliveries) {
         filledSKUs.add(key);
     }
 
+    // Ưu tiên lấy Group/Name từ Order, nếu không có thì lấy từ Giao
     const combinedItem = { 
       group: d ? d.group : (s ? s.group : "Khác"),
-      code: d ? d.sku : (s ? s.sku : ""),
-      name: key, 
+      code: key, 
+      name: d ? d.name : (s ? s.name : ""), 
       qty: dQty || 0, 
       chuyen: sQty || 0, 
       chenh: sQty - dQty 
