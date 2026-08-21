@@ -69,7 +69,7 @@
 <body>
   <div class="head">
     <div>
-      <h1>📦 Fill Rate DC (Fix KPI Chuẩn)</h1>
+      <h1>📦 Fill RATE )</h1>
       <div class="chip" id="src">Vui lòng tải file Excel dữ liệu lên</div>
     </div>
     <div class="meta" id="upd"></div>
@@ -153,91 +153,67 @@
   </div>
 
 <script>
-// Biến lưu trữ dữ và chart
 let DATA = null;
 let charts = {};
-
-// Hàm tiện ích
 function nf(x){ return (x==null?0:x).toLocaleString('vi-VN'); }
 
-// ================= XỬ LÝ UPLOAD FILE EXCEL =================
-document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
-document.getElementById('fileInput').addEventListener('change', function(e) {
-  const files = e.target.files;
-  if (!files || files.length === 0) return;
-
-  // Biến lưu trữ dữ liệu tổng hợp từ tất cả file
-  let allOrders = [];
-  let allDeliveries = [];
-  let processedCount = 0;
-
-  // Dùng vòng lặp để đọc từng file một
-  for (let file of files) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        
-        if (rows.length < 2) {
-          alert(`File "${file.name}" không có dữ liệu.`);
-          processedCount++;
-          checkComplete();
-          return;
-        }
-
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || row.length === 0) continue;
-
-          const order = {
-            group: String(row[0] || "Khác").trim(),
-            code: String(row[1] || "").trim(),
-            name: String(row[2] || "").trim(),
-            qty: parseInt(String(row[3] || "0").replace(/[^0-9]/g, '')) || 0,
-            date: row[8] ? new Date(row[8]) : null
-          };
-          const delivery = {
-            group: String(row[4] || "Khác").trim(),
-            code: String(row[5] || "").trim(),
-            name: String(row[6] || "").trim(),
-            qty: parseInt(String(row[7] || "0").replace(/[^0-9]/g, '')) || 0,
-            date: row[8] ? new Date(row[8]) : null
-          };
-          if (order.qty > 0) allOrders.push(order);
-          if (delivery.qty > 0) allDeliveries.push(delivery);
-        }
-        processedCount++;
-        checkComplete();
-      } catch(err) {
-        alert(`Lỗi đọc file "${file.name}": ` + err.message);
-        processedCount++;
-        checkComplete();
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  }
-
-  // Hàm kiểm tra khi nào đọc xong tất cả file
-  function checkComplete() {
-    if (processedCount === files.length) {
-      if (allOrders.length === 0 && allDeliveries.length === 0) {
-        alert("Không tìm thấy dữ liệu hợp lệ từ các file đã chọn.");
-        return;
-      }
-      processLogic(allOrders, allDeliveries);
-      document.getElementById('src').innerHTML = `Đã xử lý <b>${files.length}</b> file (${allOrders.length} Order & ${allDeliveries.length} Giao)`;
-      document.getElementById('upd').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
-    }
-  }
+// ================= XỬ LÝ UPLOAD & KHỞI TẠO TRANG =================
+document.getElementById('uploadBtn').addEventListener('click', function() {
+    document.getElementById('fileInput').click();
 });
 
-// ================= LOGIC SO SÁNH & TÍNH KPI CHUẨN (Chỉ cần Giao > 0 = Đã lấy) =================
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    let allOrders = [];
+    let allDeliveries = [];
+    let processedCount = 0;
+
+    for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                
+                if (rows.length < 2) { alert(`File "${file.name}" không có dữ liệu.`); processedCount++; checkComplete(); return; }
+
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length === 0) continue;
+
+                    const order = { group: String(row[0] || "Khác").trim(), code: String(row[1] || "").trim(), name: String(row[2] || "").trim(), qty: parseInt(String(row[3] || "0").replace(/[^0-9]/g, '')) || 0, date: row[8] ? new Date(row[8]) : null };
+                    const delivery = { group: String(row[4] || "Khác").trim(), code: String(row[5] || "").trim(), name: String(row[6] || "").trim(), qty: parseInt(String(row[7] || "0").replace(/[^0-9]/g, '')) || 0, date: row[8] ? new Date(row[8]) : null };
+                    
+                    if (order.qty > 0) allOrders.push(order);
+                    if (delivery.qty > 0) allDeliveries.push(delivery);
+                }
+                processedCount++;
+                checkComplete();
+            } catch(err) {
+                alert(`Lỗi đọc file "${file.name}": ` + err.message);
+                processedCount++;
+                checkComplete();
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function checkComplete() {
+        if (processedCount === files.length) {
+            if (allOrders.length === 0 && allDeliveries.length === 0) { alert("Không tìm thấy dữ liệu hợp lệ."); return; }
+            processLogic(allOrders, allDeliveries);
+            document.getElementById('src').innerHTML = `Đã xử lý <b>${files.length}</b> file (${allOrders.length} Order & ${allDeliveries.length} Giao)`;
+            document.getElementById('upd').innerText = `Cập nhật: ${new Date().toLocaleString()}`;
+        }
+    }
+});
+
 // ================= LOGIC ĐƠN GIẢN: CHÊNH LỆCH = 0 -> ĐỦ, >0 -> DƯ, <0 -> THIẾU =================
 function processLogic(orders, deliveries) {
-  // Vẫn gộp theo Tên SP để xử lý tình huống Mã Lon/Thùng nhưng quy tắc rất đơn giản
   const normalizeName = (str) => str.replace(/\s+/g, ' ').trim();
   const orderMap = new Map();
   const deliveryMap = new Map();
@@ -261,8 +237,8 @@ function processLogic(orders, deliveries) {
   });
 
   let exactItems = [], surplusItems = [], shortItems = [], allItems = [];
-  const totalOrderSKUs = new Set(orderMap.keys()); // Đếm số lượng Tên SP duy nhất
-  const filledSKUs = new Set(); // Đếm số SP đã giao (Giao > 0)
+  const totalOrderSKUs = new Set(orderMap.keys()); 
+  const filledSKUs = new Set(); 
 
   const allKeys = new Set([...orderMap.keys(), ...deliveryMap.keys()]);
   allKeys.forEach(key => {
@@ -271,30 +247,27 @@ function processLogic(orders, deliveries) {
     const dQty = d ? d.qty : 0;
     const sQty = s ? s.qty : 0;
 
-    // KPI: Chỉ cần Giao > 0 là tính là đã lấy
     if (sQty > 0 && d) {
         filledSKUs.add(key);
     }
 
-    // Tạo object tổng hợp duy nhất cho sản phẩm này
     const combinedItem = { 
       group: d ? d.group : (s ? s.group : "Khác"),
       code: d ? d.sku : (s ? s.sku : ""),
       name: key, 
       qty: dQty || 0, 
       chuyen: sQty || 0, 
-      chenh: sQty - dQty // CHÊNH LỆCH
+      chenh: sQty - dQty 
     };
 
-    // === QUY TẮC ĐƠN GIẢN TUYỆT ĐỐI ===
     if (combinedItem.chenh === 0) {
       combinedItem.type = 'Lấy đủ';
       exactItems.push(combinedItem);
     } else if (combinedItem.chenh > 0) {
       combinedItem.type = 'Lấy dư';
       surplusItems.push(combinedItem);
-    } else { // (combinedItem.chenh < 0)
-      combinedItem.type = 'Lấy thiếu'; // Bao gồm cả Chưa lấy (Giao = 0)
+    } else {
+      combinedItem.type = 'Lấy thiếu';
       shortItems.push(combinedItem);
     }
     allItems.push(combinedItem);
@@ -336,43 +309,6 @@ function processLogic(orders, deliveries) {
   renderDashboard();
 }
 
-  // Tính KPI chuẩn dựa trên filledSKUs (Số mã đã giao > 0)
-  const totalOrderQty = orders.reduce((s,i) => s + i.qty, 0);
-  const totalDeliveredQty = deliveries.reduce((s,i) => s + i.qty, 0);
-
-  const kpiData = {
-    fill_ma: totalOrderSKUs.size > 0 ? (filledSKUs.size / totalOrderSKUs.size * 100) : 0,
-    p_total: totalOrderSKUs.size,
-    p_dalay: filledSKUs.size,
-    p_chua: totalOrderSKUs.size - filledSKUs.size,
-    tot_order: totalOrderQty,
-    tot_chuyen: totalDeliveredQty,
-    n_da_lay: exactItems.filter(i => i.type !== 'Chưa lấy').length,
-    n_du: surplusItems.length,
-    n_thieu: shortItems.length,
-    n_dung: exactItems.length,
-    n_ma: totalOrderSKUs.size
-  };
-
-  const catMap = new Map();
-  orders.forEach(o => {
-    const g = o.group || "Khác";
-    if (!catMap.has(g)) catMap.set(g, { name: g, order: 0, chuyen: 0, filled: 0, unfilled: 0 });
-    const c = catMap.get(g); c.order += o.qty;
-  });
-  deliveries.forEach(d => {
-    const g = d.group || "Khác";
-    if (catMap.has(g)) { const c = catMap.get(g); c.chuyen += d.qty; }
-  });
-  allItems.forEach(i => {
-    if (catMap.has(i.group)) { const c = catMap.get(i.group); c.filled += Math.min(i.qty || 0, i.chuyen || 0); }
-  });
-  catMap.forEach((val) => { val.unfilled = Math.max(0, val.order - val.filled); });
-
-  DATA = { kpi: kpiData, nganh: Array.from(catMap.values()), chua_lay: shortItems.filter(i => i.type === 'Chưa lấy'), sai_lech: [...shortItems, ...surplusItems].filter(i => i.chenh !== 0), items: allItems };
-  renderDashboard();
-}
-
 // ================= RENDER UI =================
 function renderDashboard() {
   if (!DATA) return;
@@ -390,7 +326,6 @@ function renderDashboard() {
 
   document.getElementById('donutTitle').innerHTML = `Cơ cấu ${k.n_ma} mã hàng`;
 
-  // Chart.js rendering handlers
   if (!charts.nganh) {
     charts.nganh = new Chart(document.getElementById('chNganh'), { type: 'bar', data: { labels: DATA.nganh.map(g=>g.name), datasets: [{label:'Đã lấy', data: DATA.nganh.map(g=>g.filled), backgroundColor:C.green, stack:'s'},{label:'Chưa lấy', data: DATA.nganh.map(g=>g.unfilled), backgroundColor:C.red, stack:'s'}] }, options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}}, scales:{x:{stacked:true, grid:{color:'#e2e8f0'}}, y:{stacked:true, grid:{display:false}}} } });
   } else { charts.nganh.data.labels = DATA.nganh.map(g=>g.name); charts.nganh.data.datasets[0].data = DATA.nganh.map(g=>g.filled); charts.nganh.data.datasets[1].data = DATA.nganh.map(g=>g.unfilled); charts.nganh.update(); }
@@ -403,7 +338,6 @@ function renderDashboard() {
     charts.vol = new Chart(document.getElementById('chVol'), { type:'bar', data:{ labels:DATA.nganh.map(g=>g.name), datasets:[{label:'Order', data:DATA.nganh.map(g=>g.order), backgroundColor:C.blue, borderRadius:4},{label:'DC chuyển', data:DATA.nganh.map(g=>g.chuyen), backgroundColor:C.green, borderRadius:4}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'top'} }, scales:{ x:{ grid:{display:false}}, y:{ grid:{color:'#e2e8f0'}} } } });
   } else { charts.vol.data.labels = DATA.nganh.map(g=>g.name); charts.vol.data.datasets[0].data = DATA.nganh.map(g=>g.order); charts.vol.data.datasets[1].data = DATA.nganh.map(g=>g.chuyen); charts.vol.update(); }
 
-  // Update Tables
   const chua = DATA.chua_lay;
   document.getElementById('chuaCount').textContent = chua.length + ' mã';
   document.querySelector('#chuaTbl tbody').innerHTML = chua.map(d=>`<tr><td>${d.group}</td><td>${d.name}</td><td class="num">${nf(d.qty)}</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--mut);text-align:center">Không có dữ liệu</td></tr>';
@@ -413,19 +347,19 @@ function renderDashboard() {
   document.querySelector('#slTbl tbody').innerHTML = sai.map(d=>`<tr><td>${d.name}</td><td class="num">${nf(d.qty||0)}</td><td class="num">${nf(d.chuyen||0)}</td><td class="num"><span class="pill" style="background:${d.chenh>0?'var(--blue)':'var(--yellow)'};color:#fff">${d.chenh>0?'+':''}${nf(d.chenh)}</span></td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--mut);text-align:center">Không có dữ liệu</td></tr>';
   document.getElementById('slSum').innerHTML = `<div>Hiển thị <b>${sai.length}</b> mã</div>`;
 
-  // Tree View
   const treeData = {};
   DATA.items.forEach(i => { if(!treeData[i.group]) treeData[i.group] = []; treeData[i.group].push(i); });
   document.getElementById('tree').innerHTML = Object.keys(treeData).map(grp => {
     const items = treeData[grp];
     return `<div class="tnode"><div class="trow"><span class="tw">▶</span><span class="tname">${grp}</span><span class="tcount">${items.length} mã</span></div><div class="tchild">${items.map(i => `
-      <div class="tleaf"><span>${i.name}</span><span class="r">${nf(i.qty||0)}</span><span class="r">${nf(i.chuyen||0)}</span><span class="r" style="color:${i.chenh<0?'var(--yellow)':(i.chenh>0?'var(--blue)':'var(--mut)')}">${i.chenh>0?'+':''}${nf(i.chenh)}</span><span class="st" style="background:${i.type==='Chưa lấy'?'var(--red)':(i.type==='Lấy dư'?'var(--blue)':(i.type==='Lấy thiếu'?'var(--yellow)':'var(--green)'))}">${i.type}</span></div>
+      <div class="tleaf"><span>${i.name}</span><span class="r">${nf(i.qty||0)}</span><span class="r">${nf(i.chuyen||0)}</span><span class="r" style="color:${i.chenh<0?'var(--yellow)':(i.chenh>0?'var(--blue)':'var(--mut)')}">${i.chenh>0?'+':''}${nf(i.chenh)}</span><span class="st" style="background:${i.type==='Lấy thiếu'?'var(--red)':(i.type==='Lấy dư'?'var(--blue)':'var(--green)')}">${i.type}</span></div>
     `).join('')}</div></div>`;
   }).join('') || '<div style="padding:20px;color:var(--mut);text-align:center">Không có dữ liệu</div>';
   
   document.querySelectorAll('.trow').forEach(row => { row.onclick = () => { const child = row.nextElementSibling; const w = row.querySelector('.tw'); const op = child.classList.toggle('open'); w.classList.toggle('open', op); }; });
 }
 
+// ================= KHỞI TẠO SỰ KIỆN NÚT & EXPORT EXCEL =================
 document.getElementById('expandAll').onclick = ()=>{
   document.querySelectorAll('.tchild').forEach(c=>c.classList.add('open'));
   document.querySelectorAll('.tw').forEach(w=>w.classList.add('open'));
@@ -435,7 +369,6 @@ document.getElementById('collapseAll').onclick = ()=>{
   document.querySelectorAll('.tw').forEach(w=>w.classList.remove('open'));
 };
 
-// ================= EXPORT EXCEL =================
 const stamp = () => { const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}${p(d.getMonth()+1)}${d.getFullYear()}_${p(d.getHours())}${p(d.getMinutes())}`; };
 function download(wb,name){ XLSX.writeFile(wb,name); }
 document.getElementById('expChua').onclick = () => { if(!DATA) return alert("Upload file trước."); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Ngành','Tên hàng','SL Order']].concat(DATA.chua_lay.map(d=>[d.group,d.name,d.qty]))), 'Chua lay'); download(wb, `ChuaLay_${stamp()}.xlsx`); };
