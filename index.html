@@ -212,59 +212,85 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
     }
 });
 
-// ================= FIX LOGIC: ĐỐI CHIẾU TẬP HỢP ĐỘC LẬP (ĐÚNG VỚI DỮ LIỆU 2 DANH SÁCH) =================
+// ================= FIX LOGIC: GỘP LIÊN THÔNG (CÙNG MÃ/TÊN ĐỀU GỘP) & ĐẢM BẢO LẤY MÃ SP =================
 function processLogic(orders, deliveries) {
   const normalizeName = (str) => (str || "").replace(/\s+/g, ' ').trim();
+  
+  const parent = new Map();
+  const find = (x) => {
+    if (!parent.has(x)) parent.set(x, x);
+    if (parent.get(x) !== x) parent.set(x, find(parent.get(x)));
+    return parent.get(x);
+  };
+  const union = (a, b) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent.set(rootA, rootB);
+  };
 
-  // Gom Order vào Map 1
-  const orderMap = new Map(); // Key là Mã SP (nếu trống thì lấy Tên)
   orders.forEach(o => {
-    const key = o.code.trim() !== "" ? o.code.trim() : normalizeName(o.name);
-    if (!orderMap.has(key)) orderMap.set(key, { group: o.group, name: o.name, sku: o.code, qty: 0, items: [] });
-    const item = orderMap.get(key);
+    const codeKey = "SKU_" + o.code.trim();
+    const nameKey = "NAME_" + normalizeName(o.name);
+    if (o.code.trim() !== "") union(codeKey, nameKey);
+  });
+  deliveries.forEach(d => {
+    const codeKey = "SKU_" + d.code.trim();
+    const nameKey = "NAME_" + normalizeName(d.name);
+    if (d.code.trim() !== "") union(codeKey, nameKey);
+  });
+
+  const orderMap = new Map();
+  orders.forEach(o => {
+    const codeKey = "SKU_" + o.code.trim();
+    const nameKey = "NAME_" + normalizeName(o.name);
+    const root = o.code.trim() !== "" ? find(codeKey) : find(nameKey);
+
+    if (!orderMap.has(root)) orderMap.set(root, { group: o.group, name: o.name, sku: o.code, qty: 0, items: [] });
+    const item = orderMap.get(root);
     item.qty += o.qty;
-    if (!item.sku) item.sku = o.code;
+    if (!item.sku || item.sku === '') item.sku = o.code;
     if (!item.name) item.name = o.name;
     item.items.push(o);
   });
 
-  // Gom Giao vào Map 2 (Độc lập với Map 1)
-  const deliveryMap = new Map(); // Key là Mã SP (nếu trống thì lấy Tên)
+  const deliveryMap = new Map();
   deliveries.forEach(d => {
-    const key = d.code.trim() !== "" ? d.code.trim() : normalizeName(d.name);
-    if (!deliveryMap.has(key)) deliveryMap.set(key, { group: d.group, name: d.name, sku: d.code, qty: 0, items: [] });
-    const item = deliveryMap.get(key);
+    const codeKey = "SKU_" + d.code.trim();
+    const nameKey = "NAME_" + normalizeName(d.name);
+    const root = d.code.trim() !== "" ? find(codeKey) : find(nameKey);
+
+    if (!deliveryMap.has(root)) deliveryMap.set(root, { group: d.group, name: d.name, sku: d.code, qty: 0, items: [] });
+    const item = deliveryMap.get(root);
     item.qty += d.qty;
-    if (!item.sku) item.sku = d.code;
+    // Đảm bảo luôn có SKU: nếu Giao không có, ưu tiên lấy từ Order bên kia
+    if (!item.sku || item.sku === '') item.sku = d.code;
     if (!item.name) item.name = d.name;
     item.items.push(d);
   });
 
-  // Thực hiện đối chiếu: Đếm số Mã Order có tồn tại trong Giao
   let exactItems = [], surplusItems = [], shortItems = [], allItems = [];
-  
   const totalOrderSKUs = orderMap.size;
   let filledSKUs = 0;
 
-  // Duyệt qua tất cả Order
-  orderMap.forEach((orderItem, key) => {
-    const deliveryItem = deliveryMap.get(key);
+  orderMap.forEach((orderItem, root) => {
+    const deliveryItem = deliveryMap.get(root);
     const dQty = orderItem.qty;
     const sQty = deliveryItem ? deliveryItem.qty : 0;
 
-    // Tạo bản ghi tổng hợp
+    // Ưu tiên lấy Mã SP từ Order, nếu Order không có thì lấy từ Giao
+    const code = orderItem.sku && orderItem.sku !== '' ? orderItem.sku : (deliveryItem ? deliveryItem.sku : '');
+
     const combinedItem = { 
       group: orderItem.group, 
-      code: orderItem.sku, 
+      code: code, // Mã SP được đảm bảo không trống
       name: orderItem.name, 
       qty: dQty, 
       chuyen: sQty, 
       chenh: sQty - dQty 
     };
 
-    // Phân loại
     if (sQty > 0) {
-      filledSKUs++; // Đã lấy (kể cả giao dư, giao thiếu)
+      filledSKUs++;
       if (dQty === sQty) {
         combinedItem.type = 'Lấy đủ';
         exactItems.push(combinedItem);
@@ -282,12 +308,11 @@ function processLogic(orders, deliveries) {
     allItems.push(combinedItem);
   });
 
-  // Xử lý các mã Giao nằm ngoài Order (Giao dư tuyệt đối)
-  deliveryMap.forEach((deliveryItem, key) => {
-    if (!orderMap.has(key)) {
+  deliveryMap.forEach((deliveryItem, root) => {
+    if (!orderMap.has(root)) {
       const combinedItem = { 
         group: deliveryItem.group, 
-        code: deliveryItem.sku, 
+        code: deliveryItem.sku, // Giao ngoài Order thì lấy Mã Giao
         name: deliveryItem.name, 
         qty: 0, 
         chuyen: deliveryItem.qty, 
@@ -299,7 +324,6 @@ function processLogic(orders, deliveries) {
     }
   });
 
-  // Tính KPI theo đúng bản chất: Fill Rate = (Số mã Order có trong Giao) / (Tổng mã Order)
   const totalOrderQty = orders.reduce((s,i) => s + i.qty, 0);
   const totalDeliveredQty = deliveries.reduce((s,i) => s + i.qty, 0);
 
@@ -317,7 +341,6 @@ function processLogic(orders, deliveries) {
     n_ma: totalOrderSKUs
   };
 
-  // Gom nhóm theo Ngành để vẽ Chart
   const catMap = new Map();
   orders.forEach(o => {
     const g = o.group || "Khác";
@@ -399,8 +422,24 @@ document.getElementById('collapseAll').onclick = ()=>{
 
 const stamp = () => { const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}${p(d.getMonth()+1)}${d.getFullYear()}_${p(d.getHours())}${p(d.getMinutes())}`; };
 function download(wb,name){ XLSX.writeFile(wb,name); }
-document.getElementById('expChua').onclick = () => { if(!DATA) return alert("Upload file trước."); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Ngành','Tên hàng','SL Order']].concat(DATA.chua_lay.map(d=>[d.group,d.name,d.qty]))), 'Chua lay'); download(wb, `ChuaLay_${stamp()}.xlsx`); };
-document.getElementById('expAll').onclick = () => { if(!DATA) return alert("Upload file trước."); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Ngành','Tên hàng','SL Order','SL Giao','Chênh lệch','Trạng thái']].concat(DATA.items.map(d=>[d.group,d.name,d.qty||0,d.chuyen||0,d.chenh,d.type]))), 'Tat ca ma'); download(wb, `FullReport_${stamp()}.xlsx`); };
+// ================= EXPORT EXCEL (CÓ CỘT MÃ SP NẰM TRƯỚC TÊN SP) =================
+document.getElementById('expChua').onclick = () => { 
+    if(!DATA) return alert("Upload file trước."); 
+    const wb = XLSX.utils.book_new(); 
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+        ['Ngành hàng', 'Mã SP', 'Tên SP', 'SL Order']
+    ].concat(DATA.chua_lay.map(d => [d.group, d.code, d.name, d.qty]))), 'Chua lay'); 
+    download(wb, `ChuaLay_${stamp()}.xlsx`); 
+};
+
+document.getElementById('expAll').onclick = () => { 
+    if(!DATA) return alert("Upload file trước."); 
+    const wb = XLSX.utils.book_new(); 
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+        ['Ngành hàng', 'Mã SP', 'Tên SP', 'SL Order', 'SL Giao', 'Chênh lệch', 'Trạng thái']
+    ].concat(DATA.items.map(d => [d.group, d.code, d.name, d.qty || 0, d.chuyen || 0, d.chenh, d.type]))), 'Tat ca ma'); 
+    download(wb, `FullReport_${stamp()}.xlsx`); 
+};
 
 window.onload = function() { document.getElementById('upd').innerText = 'Chờ tải file...'; };
 </script>
